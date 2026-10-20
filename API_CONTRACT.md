@@ -30,6 +30,7 @@ Base URL: `/api`. JSON everywhere. Field names are snake_case. Errors: `{ "messa
 
 ## Admin endpoints (require role admin; every write creates an audit_logs entry)
 - `POST /api/books`, `PUT /api/books/:id`, `DELETE /api/books/:id` (deleting a book deletes its offers)
+- `POST /api/books` accepts an optional `initial_offer: { store_id, price (> 0), stock (integer >= 0) }`; the book and offer are created together (the book is removed if the offer fails) and the response includes `offers: [offer]`
 - `POST /api/stores`, `PUT /api/stores/:id`, `DELETE /api/stores/:id` (deleting a store deletes its offers)
 - `POST /api/offers` body `{ book_id, store_id, price, stock }`, `PUT /api/offers/:id`, `DELETE /api/offers/:id`
 - `GET /api/audit-logs?limit=50` -> latest entries

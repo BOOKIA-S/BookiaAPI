@@ -11,11 +11,14 @@ jest.mock('../../models/Offer', () => ({
   find: jest.fn(),
   distinct: jest.fn(),
   deleteMany: jest.fn(),
+  create: jest.fn(),
 }));
+jest.mock('../../models/Store', () => ({ exists: jest.fn() }));
 jest.mock('../../utils/auditLogger', () => ({ logAudit: jest.fn() }));
 
 const Book = require('../../models/Book');
 const Offer = require('../../models/Offer');
+const Store = require('../../models/Store');
 const { logAudit } = require('../../utils/auditLogger');
 const controller = require('../../controllers/bookController');
 const { mockQuery, mockRequest, mockResponse, ID_A, ID_B, ID_C } = require('../helpers/mocks');
@@ -186,6 +189,70 @@ describe('admin writes', () => {
     expect(Book.create).toHaveBeenCalledWith({ title: 'Pedro Páramo', author: 'Juan Rulfo' });
     expect(logAudit).toHaveBeenCalledWith(req.user, 'create', 'book', ID_A);
     expect(res.status).toHaveBeenCalledWith(201);
+  });
+
+  it('creates the book and its initial offer together and audits both', async () => {
+    Book.create.mockResolvedValue(book);
+    Store.exists.mockResolvedValue({ _id: ID_B });
+    Offer.create.mockResolvedValue({
+      _id: ID_C,
+      book_id: ID_A,
+      store_id: ID_B,
+      price: 150,
+      stock: 3,
+    });
+    const req = mockRequest({
+      body: {
+        title: 'Pedro Páramo',
+        author: 'Juan Rulfo',
+        initial_offer: { store_id: ID_B, price: '150', stock: '3' },
+      },
+    });
+    const res = mockResponse();
+    await controller.createBook(req, res);
+    expect(Book.create).toHaveBeenCalledWith({ title: 'Pedro Páramo', author: 'Juan Rulfo' });
+    expect(Offer.create).toHaveBeenCalledWith({
+      store_id: ID_B,
+      price: 150,
+      stock: 3,
+      book_id: ID_A,
+    });
+    expect(logAudit).toHaveBeenCalledWith(req.user, 'create', 'book', ID_A);
+    expect(logAudit).toHaveBeenCalledWith(req.user, 'create', 'offer', ID_C);
+    expect(res.json.mock.calls[0][0].offers[0]).toMatchObject({ _id: ID_C, is_available: true });
+  });
+
+  it.each([
+    [{ store_id: 'nope', price: 10, stock: 1 }],
+    [{ store_id: ID_B, price: 0, stock: 1 }],
+    [{ store_id: ID_B, price: 10, stock: 1.5 }],
+    ['x'],
+  ])('rejects an invalid initial offer before creating the book (%#)', async (initial_offer) => {
+    Store.exists.mockResolvedValue({ _id: ID_B });
+    const req = mockRequest({ body: { title: 'T', author: 'A', initial_offer } });
+    await expect(controller.createBook(req, mockResponse())).rejects.toMatchObject({ status: 400 });
+    expect(Book.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects an initial offer for an unknown store', async () => {
+    Store.exists.mockResolvedValue(null);
+    const req = mockRequest({
+      body: { title: 'T', author: 'A', initial_offer: { store_id: ID_B, price: 10 } },
+    });
+    await expect(controller.createBook(req, mockResponse())).rejects.toMatchObject({ status: 400 });
+    expect(Book.create).not.toHaveBeenCalled();
+  });
+
+  it('removes the book again when the offer cannot be created', async () => {
+    Book.create.mockResolvedValue(book);
+    Store.exists.mockResolvedValue({ _id: ID_B });
+    Offer.create.mockRejectedValue(new Error('db down'));
+    const req = mockRequest({
+      body: { title: 'T', author: 'A', initial_offer: { store_id: ID_B, price: 10, stock: 0 } },
+    });
+    await expect(controller.createBook(req, mockResponse())).rejects.toThrow('db down');
+    expect(Book.findByIdAndDelete).toHaveBeenCalledWith(ID_A);
+    expect(logAudit).not.toHaveBeenCalled();
   });
 
   it('updates a book and audits it', async () => {
