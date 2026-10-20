@@ -1,5 +1,9 @@
-jest.mock('../../models/User', () => ({ findOne: jest.fn() }));
-jest.mock('bcrypt', () => ({ compare: jest.fn() }));
+jest.mock('../../models/User', () => ({
+  findOne: jest.fn(),
+  exists: jest.fn(),
+  create: jest.fn(),
+}));
+jest.mock('bcrypt', () => ({ compare: jest.fn(), hash: jest.fn() }));
 
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -26,8 +30,32 @@ describe('login', () => {
     expect(jwt.verify(token, process.env.JWT_SECRET).sub).toBe(ID_A);
     expect(options).toMatchObject({ httpOnly: true, sameSite: 'strict', secure: false });
     expect(res.json).toHaveBeenCalledWith({
-      user: { _id: ID_A, email: 'admin@test.dev', role: 'admin' },
+      user: { _id: ID_A, email: 'admin@test.dev', name: '', role: 'admin' },
     });
+  });
+
+  it('lets an admin through the admin portal', async () => {
+    User.findOne.mockReturnValue(mockQuery(user));
+    bcrypt.compare.mockResolvedValue(true);
+    const res = mockResponse();
+    await controller.login(
+      mockRequest({ body: { email: 'admin@test.dev', password: 'secret123', portal: 'admin' } }),
+      res
+    );
+    expect(res.cookie).toHaveBeenCalled();
+  });
+
+  it('rejects readers on the admin portal with 403 and no cookie', async () => {
+    User.findOne.mockReturnValue(mockQuery({ ...user, role: 'reader' }));
+    bcrypt.compare.mockResolvedValue(true);
+    const res = mockResponse();
+    await expect(
+      controller.login(
+        mockRequest({ body: { email: 'a@b.c', password: 'secret123', portal: 'admin' } }),
+        res
+      )
+    ).rejects.toMatchObject({ status: 403 });
+    expect(res.cookie).not.toHaveBeenCalled();
   });
 
   it.each([{}, { email: 'a@b.c' }, { email: 'a@b.c', password: { $gt: '' } }])(
@@ -50,6 +78,67 @@ describe('login', () => {
   });
 });
 
+describe('register', () => {
+  const body = { name: ' Ana ', email: ' Ana@Test.dev ', password: 'secret123' };
+
+  it('creates a reader with a hashed password and starts a session', async () => {
+    User.exists.mockResolvedValue(null);
+    bcrypt.hash.mockResolvedValue('hashed');
+    User.create.mockResolvedValue({
+      _id: ID_A,
+      name: 'Ana',
+      email: 'ana@test.dev',
+      role: 'reader',
+    });
+    const res = mockResponse();
+    await controller.register(mockRequest({ body: { ...body, role: 'admin' } }), res);
+    expect(User.create).toHaveBeenCalledWith({
+      name: 'Ana',
+      email: 'ana@test.dev',
+      password_hash: 'hashed',
+      role: 'reader',
+    });
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({
+      user: { _id: ID_A, email: 'ana@test.dev', name: 'Ana', role: 'reader' },
+    });
+    const [, token] = res.cookie.mock.calls[0];
+    expect(jwt.verify(token, process.env.JWT_SECRET)).toMatchObject({ sub: ID_A, role: 'reader' });
+  });
+
+  it.each([
+    { email: 'a@b.c', password: 'secret123' },
+    { name: 'Ana', email: 'not-an-email', password: 'secret123' },
+    { name: 'Ana', email: 'a@b.c', password: 'short' },
+    { name: 'Ana', email: 'a@b.c', password: { $gt: '' } },
+  ])('rejects invalid input (%#)', async (input) => {
+    await expect(
+      controller.register(mockRequest({ body: input }), mockResponse())
+    ).rejects.toMatchObject({ status: 400 });
+    expect(User.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects an email that is already registered with 409', async () => {
+    User.exists.mockResolvedValue({ _id: ID_A });
+    await expect(controller.register(mockRequest({ body }), mockResponse())).rejects.toMatchObject({
+      status: 409,
+    });
+  });
+
+  it('maps a duplicate key race to 409 and rethrows other errors', async () => {
+    User.exists.mockResolvedValue(null);
+    bcrypt.hash.mockResolvedValue('hashed');
+    User.create.mockRejectedValueOnce(Object.assign(new Error('dup'), { code: 11000 }));
+    await expect(controller.register(mockRequest({ body }), mockResponse())).rejects.toMatchObject({
+      status: 409,
+    });
+    User.create.mockRejectedValueOnce(new Error('boom'));
+    await expect(controller.register(mockRequest({ body }), mockResponse())).rejects.toThrow(
+      'boom'
+    );
+  });
+});
+
 it('logout clears the cookie and returns 204', () => {
   const res = mockResponse();
   controller.logout(mockRequest(), res);
@@ -64,5 +153,5 @@ it('me returns the authenticated user', () => {
   const res = mockResponse();
   const req = mockRequest();
   controller.me(req, res);
-  expect(res.json).toHaveBeenCalledWith({ user: req.user });
+  expect(res.json).toHaveBeenCalledWith({ user: { ...req.user, name: '' } });
 });

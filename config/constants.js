@@ -1,11 +1,15 @@
 // Application-wide constants shared by models, middlewares and controllers.
-const ROLES = Object.freeze({ ADMIN: 'admin' });
+const ROLES = Object.freeze({ ADMIN: 'admin', READER: 'reader' });
 
 const AUDIT_ACTIONS = Object.freeze({ CREATE: 'create', UPDATE: 'update', DELETE: 'delete' });
 
 const AUDIT_ENTITIES = Object.freeze({ BOOK: 'book', STORE: 'store', OFFER: 'offer' });
 
 const AUTH_COOKIE_NAME = 'token';
+
+const MIN_PASSWORD_LENGTH = 8;
+const MAX_PASSWORD_LENGTH = 200;
+const MAX_FAVORITES = 200;
 
 const DEFAULT_PAGE_LIMIT = 20;
 const MAX_PAGE_LIMIT = 100;
@@ -17,6 +21,9 @@ module.exports = {
   AUDIT_ACTIONS,
   AUDIT_ENTITIES,
   AUTH_COOKIE_NAME,
+  MIN_PASSWORD_LENGTH,
+  MAX_PASSWORD_LENGTH,
+  MAX_FAVORITES,
   DEFAULT_PAGE_LIMIT,
   MAX_PAGE_LIMIT,
   DEFAULT_AUDIT_LIMIT,

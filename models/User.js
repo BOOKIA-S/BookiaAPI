@@ -14,8 +14,13 @@ const userSchema = new mongoose.Schema(
       maxlength: 254,
       match: [EMAIL_PATTERN, 'email is invalid'],
     },
+    name: { type: String, trim: true, maxlength: 80 },
     password_hash: { type: String, required: true, select: false },
-    role: { type: String, enum: Object.values(ROLES), default: ROLES.ADMIN },
+    role: { type: String, enum: Object.values(ROLES), default: ROLES.READER },
+    favorite_book_ids: {
+      type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Book' }],
+      default: [],
+    },
   },
   { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }, versionKey: false }
 );

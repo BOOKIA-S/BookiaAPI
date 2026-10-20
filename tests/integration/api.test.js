@@ -146,7 +146,7 @@ describe('auth flow', () => {
       .post('/api/auth/login')
       .send({ email: 'admin@test.dev', password: 'correct-horse' });
     expect(login.status).toBe(200);
-    expect(login.body).toEqual({ user: ADMIN });
+    expect(login.body).toEqual({ user: { ...ADMIN, name: '' } });
     const cookie = login.headers['set-cookie'][0];
     expect(cookie).toMatch(/^token=/);
     expect(cookie).toMatch(/HttpOnly/);
@@ -154,7 +154,7 @@ describe('auth flow', () => {
 
     const me = await request(app).get('/api/auth/me').set('Cookie', cookie.split(';')[0]);
     expect(me.status).toBe(200);
-    expect(me.body).toEqual({ user: ADMIN });
+    expect(me.body).toEqual({ user: { ...ADMIN, name: '' } });
 
     const logout = await request(app).post('/api/auth/logout');
     expect(logout.status).toBe(204);
@@ -173,6 +173,34 @@ describe('auth flow', () => {
     expect(injected.status).toBe(400);
   });
 
+  it('registers a reader account with a session cookie', async () => {
+    User.exists.mockResolvedValue(null);
+    User.create.mockImplementation(async (doc) => ({ _id: ID_B, ...doc }));
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({ name: 'Ana', email: 'ana@test.dev', password: 'lectora123', role: 'admin' });
+    expect(res.status).toBe(201);
+    expect(res.body).toEqual({
+      user: { _id: ID_B, email: 'ana@test.dev', name: 'Ana', role: 'reader' },
+    });
+    expect(res.headers['set-cookie'][0]).toMatch(/^token=.*HttpOnly/);
+    const created = User.create.mock.calls[0][0];
+    expect(created.role).toBe('reader');
+    expect(await bcrypt.compare('lectora123', created.password_hash)).toBe(true);
+  });
+
+  it('admin portal refuses reader accounts', async () => {
+    const passwordHash = await bcrypt.hash('lectora123', 10);
+    User.findOne.mockReturnValue(
+      mockQuery({ ...ADMIN, role: 'reader', password_hash: passwordHash })
+    );
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'ana@test.dev', password: 'lectora123', portal: 'admin' });
+    expect(res.status).toBe(403);
+    expect(res.headers['set-cookie']).toBeUndefined();
+  });
+
   it('GET /api/auth/me without a cookie returns 401', async () => {
     const res = await request(app).get('/api/auth/me');
     expect(res.status).toBe(401);
@@ -185,6 +213,34 @@ describe('auth flow', () => {
       .send('{"email":');
     expect(res.status).toBe(400);
     expect(res.body.message).toBe('Malformed JSON body');
+  });
+});
+
+describe('favorites', () => {
+  const READER = { _id: ID_A, email: 'ana@test.dev', name: 'Ana', role: 'reader' };
+
+  it('requires a session', async () => {
+    expect((await request(app).get('/api/favorites')).status).toBe(401);
+  });
+
+  it('lets a reader save and list favorites', async () => {
+    User.findById.mockImplementation((id, projection) =>
+      mockQuery(projection === 'favorite_book_ids' ? { favorite_book_ids: [] } : READER)
+    );
+    Book.exists.mockResolvedValue({ _id: ID_B });
+    User.findByIdAndUpdate.mockReturnValue(mockQuery({ favorite_book_ids: [ID_B] }));
+    const saved = await request(app).put(`/api/favorites/${ID_B}`).set('Cookie', adminCookie());
+    expect(saved.status).toBe(200);
+    expect(saved.body).toEqual({ book_ids: [ID_B] });
+
+    const list = await request(app).get('/api/favorites').set('Cookie', adminCookie());
+    expect(list.status).toBe(200);
+    expect(list.body).toEqual({ items: [] });
+  });
+
+  it('rejects an invalid book id', async () => {
+    const res = await request(app).put('/api/favorites/nope').set('Cookie', adminCookie());
+    expect(res.status).toBe(400);
   });
 });
 
