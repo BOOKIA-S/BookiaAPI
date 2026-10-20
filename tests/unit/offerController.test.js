@@ -14,7 +14,7 @@ const { logAudit } = require('../../utils/auditLogger');
 const controller = require('../../controllers/offerController');
 const { mockRequest, mockResponse, ID_A, ID_B, ID_C } = require('../helpers/mocks');
 
-const body = { book_id: ID_A, store_id: ID_B, price: 120, is_available: true };
+const body = { book_id: ID_A, store_id: ID_B, price: 120, stock: 5 };
 const offer = { _id: ID_C, ...body };
 
 beforeEach(() => {
@@ -26,13 +26,33 @@ beforeEach(() => {
 describe('createOffer', () => {
   it('creates an offer after checking references and audits it', async () => {
     Offer.create.mockResolvedValue(offer);
-    const req = mockRequest({ body: { ...body, extra: 1 } });
+    const req = mockRequest({ body: { ...body, extra: 1, is_available: false } });
     const res = mockResponse();
     await controller.createOffer(req, res);
     expect(Offer.create).toHaveBeenCalledWith(body);
     expect(logAudit).toHaveBeenCalledWith(req.user, 'create', 'offer', ID_C);
     expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({ ...offer, is_available: true });
   });
+
+  it('parses a numeric string stock and derives is_available from a document', async () => {
+    const doc = { toObject: () => ({ ...offer, stock: 0 }) };
+    Offer.create.mockResolvedValue(doc);
+    const res = mockResponse();
+    await controller.createOffer(mockRequest({ body: { ...body, stock: '0' } }), res);
+    expect(Offer.create).toHaveBeenCalledWith({ ...body, stock: 0 });
+    expect(res.json).toHaveBeenCalledWith({ ...offer, stock: 0, is_available: false });
+  });
+
+  it.each([-1, 1.5, 'abc', '', null, true, { $gt: 0 }])(
+    'rejects invalid stock %p with 400',
+    async (stock) => {
+      await expect(
+        controller.createOffer(mockRequest({ body: { ...body, stock } }), mockResponse())
+      ).rejects.toMatchObject({ status: 400, message: 'stock must be a non-negative integer' });
+      expect(Offer.create).not.toHaveBeenCalled();
+    }
+  );
 
   it.each([
     [{ ...body, book_id: 'bad' }, 'Invalid book_id'],
@@ -65,7 +85,24 @@ describe('updateOffer / deleteOffer', () => {
     expect(Book.exists).not.toHaveBeenCalled();
     expect(Offer.findByIdAndUpdate).toHaveBeenCalledWith(ID_C, { price: 99 }, expect.any(Object));
     expect(logAudit).toHaveBeenCalledWith(req.user, 'update', 'offer', ID_C);
-    expect(res.json).toHaveBeenCalledWith(offer);
+    expect(res.json).toHaveBeenCalledWith({ ...offer, is_available: true });
+  });
+
+  it('updates stock alone and never stores is_available', async () => {
+    Offer.findByIdAndUpdate.mockResolvedValue({ ...offer, stock: 0 });
+    const req = mockRequest({ params: { id: ID_C }, body: { stock: 0, is_available: true } });
+    const res = mockResponse();
+    await controller.updateOffer(req, res);
+    expect(Offer.findByIdAndUpdate).toHaveBeenCalledWith(ID_C, { stock: 0 }, expect.any(Object));
+    expect(res.json).toHaveBeenCalledWith({ ...offer, stock: 0, is_available: false });
+  });
+
+  it('rejects a negative stock on update', async () => {
+    const req = mockRequest({ params: { id: ID_C }, body: { stock: -3 } });
+    await expect(controller.updateOffer(req, mockResponse())).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(Offer.findByIdAndUpdate).not.toHaveBeenCalled();
   });
 
   it('returns 404 for missing offers', async () => {

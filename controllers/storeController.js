@@ -4,6 +4,7 @@ const Offer = require('../models/Offer');
 const { HttpError } = require('../utils/httpError');
 const { logAudit } = require('../utils/auditLogger');
 const { pickFields } = require('../utils/sanitize');
+const { withAvailability } = require('../utils/offerView');
 const { AUDIT_ACTIONS, AUDIT_ENTITIES } = require('../config/constants');
 
 const STORE_FIELDS = ['name', 'address', 'phone', 'schedule', 'maps_url'];
@@ -23,12 +24,10 @@ async function getStore(req, res) {
     .populate('book_id', 'title author')
     .lean();
   const storeOffers = offers
-    .map((offer) => ({
-      _id: offer._id,
-      price: offer.price,
-      is_available: offer.is_available,
-      book: offer.book_id,
-    }))
+    .map((offer) => {
+      const { _id, price, stock, is_available } = withAvailability(offer);
+      return { _id, price, stock, is_available, book: offer.book_id };
+    })
     .sort((a, b) => (a.book?.title || '').localeCompare(b.book?.title || '', 'es'));
   res.json({ ...store, offers: storeOffers });
 }

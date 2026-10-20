@@ -54,7 +54,7 @@ describe('public endpoints', () => {
           _id: ID_C,
           book_id: ID_A,
           price: 139,
-          is_available: true,
+          stock: 4,
           store_id: { _id: ID_B, name: 'S' },
         },
       ])
@@ -67,7 +67,16 @@ describe('public endpoints', () => {
           _id: ID_A,
           title: 'Aura',
           min_price: 139,
-          offers: [{ _id: ID_C, price: 139, is_available: true, store: { _id: ID_B, name: 'S' } }],
+          total_stock: 4,
+          offers: [
+            {
+              _id: ID_C,
+              price: 139,
+              stock: 4,
+              is_available: true,
+              store: { _id: ID_B, name: 'S' },
+            },
+          ],
         },
       ],
       total: 1,
@@ -94,6 +103,23 @@ describe('public endpoints', () => {
     const res = await request(app).get(`/api/books/${ID_A}`);
     expect(res.status).toBe(404);
     expect(res.body).toEqual({ message: 'Book not found' });
+  });
+
+  it('GET /api/books/:id returns offers with derived is_available and total_stock', async () => {
+    Book.findById.mockReturnValue(mockQuery({ _id: ID_A, title: 'Aura' }));
+    Offer.find.mockReturnValue(
+      mockQuery([
+        { _id: ID_C, price: 99, stock: 0, store_id: { _id: ID_B, name: 'S' } },
+        { _id: ID_B, price: 120, stock: 7, store_id: { _id: ID_B, name: 'S' } },
+      ])
+    );
+    const res = await request(app).get(`/api/books/${ID_A}`);
+    expect(res.status).toBe(200);
+    expect(res.body.total_stock).toBe(7);
+    expect(res.body.offers.map((offer) => [offer.stock, offer.is_available])).toEqual([
+      [0, false],
+      [7, true],
+    ]);
   });
 
   it('GET /api/stores and /api/stores/:id', async () => {
@@ -212,6 +238,31 @@ describe('admin endpoints', () => {
     expect(res.status).toBe(204);
     expect(Offer.deleteMany).toHaveBeenCalledWith({ store_id: ID_B });
     expect(AuditLog.create).toHaveBeenCalledWith(expect.objectContaining({ action: 'delete' }));
+  });
+
+  it('POST /api/offers validates stock and returns the derived is_available', async () => {
+    Book.exists.mockResolvedValue(true);
+    Store.exists.mockResolvedValue(true);
+    const payload = { book_id: ID_A, store_id: ID_B, price: 10 };
+    for (const stock of [-1, 2.5, 'many']) {
+      const res = await request(app)
+        .post('/api/offers')
+        .set('Cookie', adminCookie())
+        .send({ ...payload, stock });
+      expect(res.status).toBe(400);
+      expect(res.body.message).toBe('stock must be a non-negative integer');
+    }
+    expect(Offer.create).not.toHaveBeenCalled();
+
+    Offer.create.mockResolvedValue({ _id: ID_C, ...payload, stock: 3 });
+    const created = await request(app)
+      .post('/api/offers')
+      .set('Cookie', adminCookie())
+      .send({ ...payload, stock: 3, is_available: false });
+    expect(created.status).toBe(201);
+    expect(Offer.create).toHaveBeenCalledWith({ ...payload, stock: 3 });
+    expect(created.body).toMatchObject({ stock: 3, is_available: true });
+    expect(AuditLog.create).toHaveBeenCalledWith(expect.objectContaining({ entity: 'offer' }));
   });
 
   it('PUT /api/offers/:id validates the id', async () => {

@@ -25,7 +25,7 @@ const book = { _id: ID_A, title: 'Pedro Páramo', author: 'Juan Rulfo' };
 beforeEach(() => jest.clearAllMocks());
 
 describe('listBooks', () => {
-  it('returns paginated books with offers and min_price from available offers', async () => {
+  it('returns paginated books with offers, min_price from in-stock offers and total_stock', async () => {
     Book.countDocuments.mockResolvedValue(1);
     Book.find.mockReturnValue(mockQuery([book]));
     Offer.find.mockReturnValue(
@@ -34,17 +34,17 @@ describe('listBooks', () => {
           _id: 'o1',
           book_id: ID_A,
           price: 70,
-          is_available: false,
+          stock: 0,
           store_id: { _id: ID_B, name: 'S1' },
         },
         {
           _id: 'o2',
           book_id: ID_A,
           price: 89,
-          is_available: true,
+          stock: 4,
           store_id: { _id: ID_C, name: 'S2' },
         },
-        { _id: 'o3', book_id: ID_A, price: 95, is_available: true, store_id: null },
+        { _id: 'o3', book_id: ID_A, price: 95, stock: 2, store_id: null },
       ])
     );
     const res = mockResponse();
@@ -55,14 +55,35 @@ describe('listBooks', () => {
     expect(body.page).toBe(1);
     expect(body.limit).toBe(10);
     expect(body.items[0].min_price).toBe(89);
+    expect(body.items[0].total_stock).toBe(6);
     expect(body.items[0].offers[0]).toEqual({
       _id: 'o1',
       price: 70,
+      stock: 0,
       is_available: false,
       store: { _id: ID_B, name: 'S1' },
     });
+    expect(body.items[0].offers[1].is_available).toBe(true);
     expect(body.items[0].offers[2].store).toBeNull();
     expect(Offer.distinct).not.toHaveBeenCalled();
+  });
+
+  it('returns min_price null and total_stock 0 when no offer has stock', async () => {
+    Book.countDocuments.mockResolvedValue(2);
+    Book.find.mockReturnValue(mockQuery([book, { _id: ID_B, title: 'Aura' }]));
+    Offer.find.mockReturnValue(
+      mockQuery([
+        { _id: 'o1', book_id: ID_A, price: 50, stock: 0, store_id: null },
+        { _id: 'o2', book_id: ID_A, price: 60, stock: 0, store_id: null },
+      ])
+    );
+    const res = mockResponse();
+    await controller.listBooks(mockRequest(), res);
+    const [withOffers, withoutOffers] = res.json.mock.calls[0][0].items;
+    expect(withOffers.min_price).toBeNull();
+    expect(withOffers.total_stock).toBe(0);
+    expect(withOffers.offers.every((offer) => offer.is_available === false)).toBe(true);
+    expect(withoutOffers).toMatchObject({ offers: [], min_price: null, total_stock: 0 });
   });
 
   it('applies escaped search, genre, publisher, store and price filters', async () => {
@@ -127,17 +148,24 @@ describe('getBookFilters', () => {
 });
 
 describe('getBook', () => {
-  it('returns the book with populated store offers', async () => {
+  it('returns the book with populated store offers and total_stock', async () => {
     Book.findById.mockReturnValue(mockQuery(book));
     const store = { _id: ID_B, name: 'S1' };
     Offer.find.mockReturnValue(
-      mockQuery([{ _id: 'o1', price: 10, is_available: true, store_id: store }])
+      mockQuery([
+        { _id: 'o1', price: 10, stock: 3, store_id: store },
+        { _id: 'o2', price: 12, stock: 0, store_id: store },
+      ])
     );
     const res = mockResponse();
     await controller.getBook(mockRequest({ params: { id: ID_A } }), res);
     expect(res.json).toHaveBeenCalledWith({
       ...book,
-      offers: [{ _id: 'o1', price: 10, is_available: true, store }],
+      offers: [
+        { _id: 'o1', price: 10, stock: 3, is_available: true, store },
+        { _id: 'o2', price: 12, stock: 0, is_available: false, store },
+      ],
+      total_stock: 3,
     });
   });
 
