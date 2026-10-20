@@ -36,11 +36,11 @@ async function seedCatalog() {
   const storeIdByKey = new Map(STORES.map((store, index) => [store.key, storeDocs[index]._id]));
   const bookIdByKey = new Map(BOOKS.map((book, index) => [book.key, bookDocs[index]._id]));
 
-  const offers = OFFERS.map(([bookKey, storeKey, price, isAvailable]) => ({
+  const offers = OFFERS.map(([bookKey, storeKey, price, stock]) => ({
     book_id: bookIdByKey.get(bookKey),
     store_id: storeIdByKey.get(storeKey),
     price,
-    is_available: isAvailable,
+    stock,
   }));
   await Offer.insertMany(offers);
 

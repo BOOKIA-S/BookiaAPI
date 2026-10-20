@@ -31,9 +31,9 @@ it('returns a store with offers sorted by book title', async () => {
   Store.findById.mockReturnValue(mockQuery(store));
   Offer.find.mockReturnValue(
     mockQuery([
-      { _id: 'o1', price: 10, is_available: true, book_id: { _id: 'b1', title: 'Rayuela' } },
-      { _id: 'o2', price: 20, is_available: false, book_id: null },
-      { _id: 'o3', price: 30, is_available: true, book_id: { _id: 'b2', title: 'Aura' } },
+      { _id: 'o1', price: 10, stock: 5, book_id: { _id: 'b1', title: 'Rayuela' } },
+      { _id: 'o2', price: 20, stock: 0, book_id: null },
+      { _id: 'o3', price: 30, stock: 1, book_id: { _id: 'b2', title: 'Aura' } },
     ])
   );
   const res = mockResponse();
@@ -41,6 +41,14 @@ it('returns a store with offers sorted by book title', async () => {
   const body = res.json.mock.calls[0][0];
   expect(body.name).toBe(store.name);
   expect(body.offers.map((offer) => offer._id)).toEqual(['o2', 'o3', 'o1']);
+  expect(body.offers[0]).toEqual({
+    _id: 'o2',
+    price: 20,
+    stock: 0,
+    is_available: false,
+    book: null,
+  });
+  expect(body.offers[2]).toMatchObject({ stock: 5, is_available: true });
 });
 
 it('returns 404 for a missing store', async () => {

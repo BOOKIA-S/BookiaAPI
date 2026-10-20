@@ -2,6 +2,7 @@
 const Book = require('../models/Book');
 const Offer = require('../models/Offer');
 const { HttpError } = require('../utils/httpError');
+const { computeMinPrice, computeTotalStock, withAvailability } = require('../utils/offerView');
 const { logAudit } = require('../utils/auditLogger');
 const {
   escapeRegex,
@@ -55,15 +56,15 @@ function buildBookFilter(query) {
   return filter;
 }
 
-/** Lowest price among available offers, or null when none is available. */
-function computeMinPrice(offers) {
-  const prices = offers.filter((offer) => offer.is_available).map((offer) => offer.price);
-  return prices.length > 0 ? Math.min(...prices) : null;
+/** Shapes an offer for API responses, attaching the given store representation. */
+function toBookOffer(offer, store) {
+  const { _id, price, stock, is_available } = withAvailability(offer);
+  return { _id, price, stock, is_available, store };
 }
 
 function toListOffer(offer) {
   const store = offer.store_id ? { _id: offer.store_id._id, name: offer.store_id.name } : null;
-  return { _id: offer._id, price: offer.price, is_available: offer.is_available, store };
+  return toBookOffer(offer, store);
 }
 
 /** GET /api/books */
@@ -105,7 +106,12 @@ async function listBooks(req, res) {
 
   const items = books.map((book) => {
     const bookOffers = offersByBook.get(String(book._id)) || [];
-    return { ...book, offers: bookOffers, min_price: computeMinPrice(bookOffers) };
+    return {
+      ...book,
+      offers: bookOffers,
+      min_price: computeMinPrice(bookOffers),
+      total_stock: computeTotalStock(bookOffers),
+    };
   });
 
   res.json({ items, total, page, limit });
@@ -132,15 +138,8 @@ async function getBook(req, res) {
     .populate('store_id')
     .sort({ price: 1 })
     .lean();
-  res.json({
-    ...book,
-    offers: offers.map((offer) => ({
-      _id: offer._id,
-      price: offer.price,
-      is_available: offer.is_available,
-      store: offer.store_id,
-    })),
-  });
+  const bookOffers = offers.map((offer) => toBookOffer(offer, offer.store_id));
+  res.json({ ...book, offers: bookOffers, total_stock: computeTotalStock(bookOffers) });
 }
 
 /** POST /api/books */
