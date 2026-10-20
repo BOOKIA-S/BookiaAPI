@@ -1,8 +1,14 @@
 // Business logic for books: public search/detail and admin CRUD.
 const Book = require('../models/Book');
 const Offer = require('../models/Offer');
+const Store = require('../models/Store');
 const { HttpError } = require('../utils/httpError');
-const { computeMinPrice, computeTotalStock, withAvailability } = require('../utils/offerView');
+const {
+  computeMinPrice,
+  computeTotalStock,
+  parseStock,
+  withAvailability,
+} = require('../utils/offerView');
 const { logAudit } = require('../utils/auditLogger');
 const {
   escapeRegex,
@@ -142,11 +148,41 @@ async function getBook(req, res) {
   res.json({ ...book, offers: bookOffers, total_stock: computeTotalStock(bookOffers) });
 }
 
-/** POST /api/books */
+/** Validates the optional `initial_offer` of a new book; returns undefined when absent. */
+async function readInitialOffer(value) {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== 'object') throw new HttpError(400, 'Invalid initial_offer');
+  const storeId = toCleanString(value.store_id);
+  if (!isValidObjectId(storeId)) throw new HttpError(400, 'Invalid store_id');
+  const price = toNumber(value.price);
+  if (price === undefined || price <= 0) throw new HttpError(400, 'price must be greater than 0');
+  const stock = parseStock(value.stock ?? 0);
+  if (!(await Store.exists({ _id: storeId }))) throw new HttpError(400, 'Store does not exist');
+  return { store_id: storeId, price, stock };
+}
+
+/**
+ * POST /api/books. With `initial_offer: { store_id, price, stock }` the book and its first
+ * offer are created together; if the offer fails the book is removed again.
+ */
 async function createBook(req, res) {
+  const initialOffer = await readInitialOffer(req.body?.initial_offer);
   const book = await Book.create(pickFields(req.body, BOOK_FIELDS));
+
+  let offer;
+  if (initialOffer) {
+    try {
+      offer = await Offer.create({ ...initialOffer, book_id: book._id });
+    } catch (error) {
+      await Book.findByIdAndDelete(book._id);
+      throw error;
+    }
+  }
+
   await logAudit(req.user, AUDIT_ACTIONS.CREATE, AUDIT_ENTITIES.BOOK, book._id);
-  res.status(201).json(book);
+  if (offer) await logAudit(req.user, AUDIT_ACTIONS.CREATE, AUDIT_ENTITIES.OFFER, offer._id);
+  const body = typeof book.toObject === 'function' ? book.toObject() : book;
+  res.status(201).json(offer ? { ...body, offers: [withAvailability(offer)] } : book);
 }
 
 /** PUT /api/books/:id */
