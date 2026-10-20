@@ -21,7 +21,10 @@ Base URL: `/api`. JSON everywhere. Field names are snake_case. Errors: `{ "messa
 - `GET /api/stores/:id` -> `{ ...Store, offers: [ { _id, price, stock, is_available, book: { _id, title, author } } ] }`
 
 ## Auth (JWT in cookie `token`, httpOnly, secure in production, sameSite strict)
-- `POST /api/auth/login` body `{ email, password }` -> `{ user: { _id, email, role } }` + sets cookie
+- `POST /api/auth/register` body `{ name, email, password (>= 8 chars) }` -> 201 `{ user }` (role `reader`) + sets cookie; 409 if the email exists
+- `POST /api/auth/login` body `{ email, password, portal? }` -> `{ user: { _id, email, name, role } }` + sets cookie; with `portal: "admin"` non-admins get 403
+- `GET /api/favorites` (any signed-in user) -> `{ items: [ { _id, title, author, genre, publisher } ] }`
+- `PUT|DELETE /api/favorites/:bookId` -> `{ book_ids }`
 - `POST /api/auth/logout` -> 204, clears cookie
 - `GET /api/auth/me` -> `{ user }` or 401
 
