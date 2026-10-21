@@ -1,4 +1,4 @@
-# CI for the API when backend/ lives in its own repository (see README "Repo propio").
+# CI for the API when api/ lives in its own repository (see README "Repo propio").
 # Inside the BOOKIA monorepo GitHub ignores this file; the root .github/workflows/ci.yml runs instead.
 name: CI
 

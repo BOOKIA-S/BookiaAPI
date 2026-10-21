@@ -1,5 +1,5 @@
 {
-  "name": "bookia-backend",
+  "name": "bookia-api",
   "version": "1.0.0",
   "description": "BOOKIA REST API: bookstores, books, prices and availability in Huauchinango, Puebla",
   "main": "server.js",
