@@ -1,40 +1,77 @@
-# BOOKIA API contract (shared by backend and frontend)
+# BOOKIA API contract
 
-Base URL: `/api`. JSON everywhere. Field names are snake_case. Errors: `{ "message": string }` with proper HTTP status.
+Base URL: `/api` (local: `http://localhost:4000/api`). JSON everywhere. Field names are snake_case.
+Errors: `{ "message": string }` with the proper HTTP status (see [Errors](#errors)).
 
 ## Models
-- **Store**: `_id, name, address, phone, schedule, maps_url, created_at, updated_at`
-- **Book**: `_id, title, author, genre, publisher, edition, isbn, created_at, updated_at` (text index on title+author)
-- **Offer**: `_id, book_id (ref Book), store_id (ref Store), price (Number), stock (integer >= 0, copies in the store)` (unique index book_id+store_id)
-  - Every offer returned by the API also carries a derived `is_available` (= `stock > 0`). It is read-only and never stored.
-- **User**: `_id, email, password_hash, role ('admin')`
-- **AuditLog** (collection `audit_logs`): `user_id, action ('create'|'update'|'delete'), entity ('book'|'store'|'offer'), entity_id, created_at`
 
-## Public endpoints
+- **Store**: `_id, name (required), address (required), phone, schedule, maps_url (http/https URL), created_at, updated_at`
+- **Book**: `_id, title (required), author (required), genre, publisher, edition, isbn (10-17 digits, dashes or X), created_at, updated_at`
+- **Offer**: `_id, book_id (ref Book), store_id (ref Store), price (Number >= 0), stock (integer >= 0, copies in the store), created_at, updated_at`
+  - Unique per `book_id + store_id`: a store has at most one offer for each book.
+  - Every offer returned by the API also carries a derived `is_available` (= `stock > 0`). It is read-only, never stored and ignored if sent.
+- **User**: `_id, email (unique), name, password_hash (never returned), role ('admin' | 'reader'), favorite_book_ids (ref Book[])`
+  - Public shape returned by the API: `{ _id, email, name, role }`.
+- **AuditLog** (collection `audit_logs`): `_id, user_id, action ('create'|'update'|'delete'), entity ('book'|'store'|'offer'), entity_id, created_at`
+
+## Public endpoints (no session)
+
 - `GET /api/health` -> `{ status: "ok" }`
 - `GET /api/books?q=&genre=&publisher=&store_id=&min_price=&max_price=&page=1&limit=20`
   -> `{ items: [ { ...Book, offers: [ { _id, price, stock, is_available, store: { _id, name } } ], min_price, total_stock } ], total, page, limit }`
-  (books that have no offer matching store/price filters are excluded when those filters are given)
+  - `q` searches title, author and ISBN (case-insensitive). `genre` and `publisher` are exact matches.
+  - `store_id`, `min_price` and `max_price` filter offers; books without a matching offer are excluded when any of them is given.
+  - `limit` max 100. Items sorted by title; offers sorted by price.
 - `GET /api/books/filters` -> `{ genres: string[], publishers: string[] }`
 - `GET /api/books/:id` -> `{ ...Book, offers: [ { _id, price, stock, is_available, store: Store } ], total_stock }`
-- `GET /api/stores` -> `Store[]`
+- `GET /api/stores` -> `Store[]` (sorted by name)
 - `GET /api/stores/:id` -> `{ ...Store, offers: [ { _id, price, stock, is_available, book: { _id, title, author } } ] }`
 
-## Auth (JWT in cookie `token`, httpOnly, secure in production, sameSite strict)
-- `POST /api/auth/register` body `{ name, email, password (>= 8 chars) }` -> 201 `{ user }` (role `reader`) + sets cookie; 409 if the email exists
-- `POST /api/auth/login` body `{ email, password, portal? }` -> `{ user: { _id, email, name, role } }` + sets cookie; with `portal: "admin"` non-admins get 403
-- `GET /api/favorites` (any signed-in user) -> `{ items: [ { _id, title, author, genre, publisher } ] }`
-- `PUT|DELETE /api/favorites/:bookId` -> `{ book_ids }`
+`min_price` is the lowest price among offers with `stock > 0` (null if none). `total_stock` is the sum of `stock` over the returned offers.
+
+## Auth
+
+The JWT travels only in the cookie `token` (httpOnly, `secure` in production, `sameSite=strict`, lifetime `JWT_EXPIRES_IN_SECONDS`). Clients must send cookies back (browser `credentials: "include"`, Postman/REST Client keep them automatically).
+
+- `POST /api/auth/register` body `{ name, email, password (8-200 chars) }` -> 201 `{ user }` with role `reader` + sets cookie; 409 if the email exists
+- `POST /api/auth/login` body `{ email, password, portal? }` -> `{ user }` + sets cookie; 401 on bad credentials; with `portal: "admin"` non-admins get 403
 - `POST /api/auth/logout` -> 204, clears cookie
 - `GET /api/auth/me` -> `{ user }` or 401
 
-## Admin endpoints (require role admin; every write creates an audit_logs entry)
-- `POST /api/books`, `PUT /api/books/:id`, `DELETE /api/books/:id` (deleting a book deletes its offers)
-- `POST /api/books` accepts an optional `initial_offer: { store_id, price (> 0), stock (integer >= 0) }`; the book and offer are created together (the book is removed if the offer fails) and the response includes `offers: [offer]`
-- `POST /api/stores`, `PUT /api/stores/:id`, `DELETE /api/stores/:id` (deleting a store deletes its offers)
-- `POST /api/offers` body `{ book_id, store_id, price, stock }`, `PUT /api/offers/:id`, `DELETE /api/offers/:id`
-- `GET /api/audit-logs?limit=50` -> latest entries
+`register` and `login` share a rate limit of 20 requests per 15 minutes per IP (429 when exceeded).
 
-Dev: backend on port 4000, frontend Vite on 5173 with proxy `/api` -> `http://localhost:4000`.
+## Reader endpoints (any signed-in user, reader or admin)
 
-`min_price` is the lowest price among offers with `stock > 0` (null if none). `total_stock` is the sum of `stock` over the returned offers.
+- `GET /api/favorites` -> `{ items: [ { _id, title, author, genre, publisher } ] }` (most recently saved first)
+- `PUT /api/favorites/:bookId` -> `{ book_ids }` (idempotent; 404 if the book does not exist; max 200 favorites)
+- `DELETE /api/favorites/:bookId` -> `{ book_ids }`
+
+## Admin endpoints (role `admin`; every write creates an `audit_logs` entry)
+
+- `POST /api/books` body `{ title, author, genre?, publisher?, edition?, isbn?, initial_offer? }` -> 201 Book
+  - Optional `initial_offer: { store_id, price (> 0), stock (integer >= 0) }`: the book and its first offer are created together (the book is removed again if the offer fails) and the response includes `offers: [offer]`.
+- `PUT /api/books/:id` (any Book field) -> Book; `DELETE /api/books/:id` -> 204 (also deletes its offers)
+- `POST /api/stores` body `{ name, address, phone?, schedule?, maps_url? }` -> 201 Store
+- `PUT /api/stores/:id` -> Store; `DELETE /api/stores/:id` -> 204 (also deletes its offers)
+- `POST /api/offers` body `{ book_id, store_id, price, stock }` -> 201 Offer (with `is_available`); 400 if the book or store does not exist; 409 if that store already has an offer for the book
+- `PUT /api/offers/:id` (any of `price`, `stock`, `book_id`, `store_id`) -> Offer; `DELETE /api/offers/:id` -> 204
+- `GET /api/audit-logs?limit=50` -> latest entries first (`limit` max 200)
+
+Unknown body fields are ignored. Fields with a leading `$` or containing `.` are stripped before reaching the database.
+
+## Errors
+
+| Status | When                                                                    |
+| ------ | ----------------------------------------------------------------------- |
+| 400    | Validation failed, malformed id or JSON body                            |
+| 401    | No session, or the session expired / is invalid                         |
+| 403    | Signed in without the required role (or reader on `portal: "admin"`)    |
+| 404    | Resource or route not found                                             |
+| 409    | Duplicate (email already registered, offer for the same book and store) |
+| 413    | Body larger than 100 KB                                                 |
+| 429    | Too many register/login attempts                                        |
+| 500    | Unexpected error (details are logged, never returned)                   |
+
+## Dev setup
+
+API on port 4000. CORS allows only `CLIENT_URL` (default `http://localhost:5173`) with credentials; the BOOKIA frontend's Vite dev server proxies `/api` -> `http://localhost:4000`.
