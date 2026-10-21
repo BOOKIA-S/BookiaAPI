@@ -1,0 +1,162 @@
+# BOOKIA API: example requests for the VS Code "REST Client" extension.
+# Run `npm run seed` and `npm run dev` first, then send the requests top to bottom.
+# REST Client keeps the session cookie between requests, and `# @name` lets later
+# requests reuse ids from earlier responses.
+
+@baseUrl = http://localhost:4000/api
+@adminEmail = admin@bookia.local
+@adminPassword = CHANGE_ME
+
+### Health
+GET {{baseUrl}}/health
+
+### ---------- Public catalog ----------
+
+### Search books (text, genre, price range, pagination)
+# @name search
+GET {{baseUrl}}/books?q=rulfo&max_price=300&page=1&limit=20
+
+### Genres and publishers for the filters
+GET {{baseUrl}}/books/filters
+
+### Book detail with every store that sells it
+GET {{baseUrl}}/books/{{search.response.body.$.items[0]._id}}
+
+### Store directory
+# @name stores
+GET {{baseUrl}}/stores
+
+### Store detail with its catalog
+GET {{baseUrl}}/stores/{{stores.response.body.$[0]._id}}
+
+### Books sold by one store
+GET {{baseUrl}}/books?store_id={{stores.response.body.$[0]._id}}
+
+### ---------- Reader account and favorites ----------
+
+### Register a reader (change the email if it already exists -> 409)
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Lectora de prueba",
+  "email": "lectora@example.com",
+  "password": "lectora123"
+}
+
+### Sign in as that reader
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "lectora@example.com",
+  "password": "lectora123"
+}
+
+### Current user
+GET {{baseUrl}}/auth/me
+
+### Save a favorite
+PUT {{baseUrl}}/favorites/{{search.response.body.$.items[0]._id}}
+
+### List favorites
+GET {{baseUrl}}/favorites
+
+### Remove the favorite
+DELETE {{baseUrl}}/favorites/{{search.response.body.$.items[0]._id}}
+
+### A reader cannot use admin routes (expects 403)
+POST {{baseUrl}}/stores
+Content-Type: application/json
+
+{ "name": "No permitido", "address": "Calle 1" }
+
+### Sign out
+POST {{baseUrl}}/auth/logout
+
+### ---------- Admin ----------
+
+### Sign in as admin (portal "admin" rejects reader accounts with 403)
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}",
+  "portal": "admin"
+}
+
+### Create a store
+# @name newStore
+POST {{baseUrl}}/stores
+Content-Type: application/json
+
+{
+  "name": "Librería de Prueba",
+  "address": "Calle Hidalgo 10, Centro, 73160 Huauchinango, Pue.",
+  "phone": "776 000 0000",
+  "schedule": "Lun-Vie 9:00-18:00",
+  "maps_url": "https://www.google.com/maps/search/?api=1&query=Huauchinango"
+}
+
+### Update the store
+PUT {{baseUrl}}/stores/{{newStore.response.body.$._id}}
+Content-Type: application/json
+
+{ "schedule": "Lun-Sáb 9:00-19:00" }
+
+### Create a book together with its first offer
+# @name newBook
+POST {{baseUrl}}/books
+Content-Type: application/json
+
+{
+  "title": "Los de abajo",
+  "author": "Mariano Azuela",
+  "genre": "Novela",
+  "publisher": "Fondo de Cultura Económica",
+  "initial_offer": {
+    "store_id": "{{newStore.response.body.$._id}}",
+    "price": 120,
+    "stock": 5
+  }
+}
+
+### Update the book
+PUT {{baseUrl}}/books/{{newBook.response.body.$._id}}
+Content-Type: application/json
+
+{ "edition": "2a edición" }
+
+### Add an offer of an existing book in the new store
+# @name newOffer
+POST {{baseUrl}}/offers
+Content-Type: application/json
+
+{
+  "book_id": "{{search.response.body.$.items[0]._id}}",
+  "store_id": "{{newStore.response.body.$._id}}",
+  "price": 99,
+  "stock": 2
+}
+
+### Change price and stock (stock 0 -> is_available false)
+PUT {{baseUrl}}/offers/{{newOffer.response.body.$._id}}
+Content-Type: application/json
+
+{ "price": 95, "stock": 0 }
+
+### Latest audit log entries
+GET {{baseUrl}}/audit-logs?limit=10
+
+### Delete the offer
+DELETE {{baseUrl}}/offers/{{newOffer.response.body.$._id}}
+
+### Delete the book (also deletes its offers)
+DELETE {{baseUrl}}/books/{{newBook.response.body.$._id}}
+
+### Delete the store (also deletes its offers)
+DELETE {{baseUrl}}/stores/{{newStore.response.body.$._id}}
+
+### Sign out
+POST {{baseUrl}}/auth/logout

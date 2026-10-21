@@ -1,0 +1,21 @@
+# CI for the API when backend/ lives in its own repository (see README "Repo propio").
+# Inside the BOOKIA monorepo GitHub ignores this file; the root .github/workflows/ci.yml runs instead.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
