@@ -16,7 +16,7 @@ Esta carpeta es un proyecto independiente: no depende del frontend y se puede co
 ## Estructura
 
 ```
-backend/
+api/
 ├── server.js            # punto de entrada: valida .env, conecta a MongoDB, levanta HTTP
 ├── app.js               # app de Express (middlewares + rutas), sin conexión para poder testearla
 ├── config/              # variables de entorno, conexión a la BD y constantes
@@ -39,7 +39,7 @@ Requisitos: Node.js 22 y un MongoDB al que conectarse, cualquiera de los dos:
 - **MongoDB Atlas** (nube, plan gratuito): crea un cluster y pon su cadena `mongodb+srv://usuario:password@.../bookia` en `MONGODB_URI`.
 
 ```bash
-cd backend
+cd api
 cp .env.example .env       # en Windows: copy .env.example .env
 # Edita .env: JWT_SECRET (texto largo) y ADMIN_PASSWORD (mínimo 8 caracteres)
 npm install
@@ -191,11 +191,11 @@ Las pruebas usan mocks de Mongoose y Supertest contra `app.js`, por lo que no ne
 
 ## Repo propio
 
-`backend/` ya trae todo lo que necesita para vivir sola: `package.json`, `.env.example`, `.gitignore`, pruebas y su propio workflow de CI en `backend/.github/workflows/ci.yml` (dentro de este monorepo GitHub lo ignora; en un repo propio se activa solo). Para sacarla a un repositorio nuevo conservando su historial:
+`api/` ya trae todo lo que necesita para vivir sola: `package.json`, `.env.example`, `.gitignore`, pruebas y su propio workflow de CI en `api/.github/workflows/ci.yml` (dentro de este monorepo GitHub lo ignora; en un repo propio se activa solo). Para sacarla a un repositorio nuevo conservando su historial:
 
 ```bash
 # desde la raíz del repo de BOOKIA
-git subtree split --prefix=backend -b api-only
+git subtree split --prefix=api -b api-only
 git push https://github.com/USUARIO/bookia-api.git api-only:main
 ```
 
