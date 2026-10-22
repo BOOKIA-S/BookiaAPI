@@ -201,6 +201,36 @@ describe('auth flow', () => {
     expect(res.headers['set-cookie']).toBeUndefined();
   });
 
+  it('PATCH /api/auth/me renames the signed-in user only', async () => {
+    User.findByIdAndUpdate.mockReturnValue(
+      mockQuery({ ...ADMIN, name: 'Ana Lectora', created_at: '2026-10-20T00:00:00.000Z' })
+    );
+    const res = await request(app)
+      .patch('/api/auth/me')
+      .set('Cookie', adminCookie())
+      .send({ name: '  Ana Lectora  ', role: 'admin', email: 'otro@test.dev' });
+    expect(res.status).toBe(200);
+    expect(res.body.user).toEqual({
+      ...ADMIN,
+      name: 'Ana Lectora',
+      created_at: '2026-10-20T00:00:00.000Z',
+    });
+    const [id, update] = User.findByIdAndUpdate.mock.calls[0];
+    expect(id).toBe(ID_A);
+    expect(update).toEqual({ name: 'Ana Lectora' });
+  });
+
+  it('PATCH /api/auth/me rejects an empty name and anonymous requests', async () => {
+    const empty = await request(app)
+      .patch('/api/auth/me')
+      .set('Cookie', adminCookie())
+      .send({ name: '   ' });
+    expect(empty.status).toBe(400);
+    expect(User.findByIdAndUpdate).not.toHaveBeenCalled();
+    const anonymous = await request(app).patch('/api/auth/me').send({ name: 'Ana' });
+    expect(anonymous.status).toBe(401);
+  });
+
   it('GET /api/auth/me without a cookie returns 401', async () => {
     const res = await request(app).get('/api/auth/me');
     expect(res.status).toBe(401);

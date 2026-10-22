@@ -37,6 +37,9 @@ The JWT travels only in the cookie `token` (httpOnly, `secure` in production, `s
 - `POST /api/auth/login` body `{ email, password, portal? }` -> `{ user }` + sets cookie; 401 on bad credentials; with `portal: "admin"` non-admins get 403
 - `POST /api/auth/logout` -> 204, clears cookie
 - `GET /api/auth/me` -> `{ user }` or 401
+- `PATCH /api/auth/me` body `{ name (1-80 chars) }` -> `{ user }` with the new name; 400 if the name is empty; 401 without a session. Email, role and password cannot be changed here.
+
+`user` is `{ _id, email, name, role, created_at }`.
 
 `register` and `login` share a rate limit of 20 requests per 15 minutes per IP (429 when exceeded).
 

@@ -6,7 +6,7 @@ const { AUTH_COOKIE_NAME } = require('../config/constants');
 const { HttpError } = require('../utils/httpError');
 const { isValidObjectId } = require('../utils/sanitize');
 
-/** Verifies the JWT cookie and attaches `req.user = { _id, email, name, role }`. */
+/** Verifies the JWT cookie and attaches `req.user = { _id, email, name, role, created_at }`. */
 async function requireAuth(req, res, next) {
   const token = req.cookies?.[AUTH_COOKIE_NAME];
   if (!token) throw new HttpError(401, 'Authentication required');
@@ -19,10 +19,16 @@ async function requireAuth(req, res, next) {
   }
   if (!isValidObjectId(payload?.sub)) throw new HttpError(401, 'Invalid or expired session');
 
-  const user = await User.findById(payload.sub, 'email name role').lean();
+  const user = await User.findById(payload.sub, 'email name role created_at').lean();
   if (!user) throw new HttpError(401, 'Invalid or expired session');
 
-  req.user = { _id: user._id, email: user.email, name: user.name, role: user.role };
+  req.user = {
+    _id: user._id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    created_at: user.created_at,
+  };
   next();
 }
 
