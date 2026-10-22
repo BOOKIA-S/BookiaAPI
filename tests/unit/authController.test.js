@@ -9,7 +9,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const User = require('../../models/User');
 const controller = require('../../controllers/authController');
-const { mockQuery, mockRequest, mockResponse, ID_A } = require('../helpers/mocks');
+const { mockQuery, mockRequest, mockResponse, ID_A, ID_B } = require('../helpers/mocks');
 
 const user = { _id: ID_A, email: 'admin@test.dev', role: 'admin', password_hash: 'hash' };
 
@@ -30,7 +30,7 @@ describe('login', () => {
     expect(jwt.verify(token, process.env.JWT_SECRET).sub).toBe(ID_A);
     expect(options).toMatchObject({ httpOnly: true, sameSite: 'strict', secure: false });
     expect(res.json).toHaveBeenCalledWith({
-      user: { _id: ID_A, email: 'admin@test.dev', name: '', role: 'admin' },
+      user: { _id: ID_A, email: 'admin@test.dev', name: '', role: 'admin', store_id: null },
     });
   });
 
@@ -43,6 +43,18 @@ describe('login', () => {
       res
     );
     expect(res.cookie).toHaveBeenCalled();
+  });
+
+  it('lets a store owner through the admin portal with its store_id', async () => {
+    User.findOne.mockReturnValue(mockQuery({ ...user, role: 'store_owner', store_id: ID_B }));
+    bcrypt.compare.mockResolvedValue(true);
+    const res = mockResponse();
+    await controller.login(
+      mockRequest({ body: { email: 'owner@test.dev', password: 'secret123', portal: 'admin' } }),
+      res
+    );
+    expect(res.cookie).toHaveBeenCalled();
+    expect(res.json.mock.calls[0][0].user).toMatchObject({ role: 'store_owner', store_id: ID_B });
   });
 
   it('rejects readers on the admin portal with 403 and no cookie', async () => {
@@ -100,7 +112,7 @@ describe('register', () => {
     });
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith({
-      user: { _id: ID_A, email: 'ana@test.dev', name: 'Ana', role: 'reader' },
+      user: { _id: ID_A, email: 'ana@test.dev', name: 'Ana', role: 'reader', store_id: null },
     });
     const [, token] = res.cookie.mock.calls[0];
     expect(jwt.verify(token, process.env.JWT_SECRET)).toMatchObject({ sub: ID_A, role: 'reader' });
@@ -153,5 +165,5 @@ it('me returns the authenticated user', () => {
   const res = mockResponse();
   const req = mockRequest();
   controller.me(req, res);
-  expect(res.json).toHaveBeenCalledWith({ user: { ...req.user, name: '' } });
+  expect(res.json).toHaveBeenCalledWith({ user: { ...req.user, name: '', store_id: null } });
 });

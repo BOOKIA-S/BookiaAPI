@@ -23,7 +23,7 @@ describe('requireAuth', () => {
     const req = mockRequest({ cookies: { token: sign({ sub: ID_A }) }, user: undefined });
     const next = jest.fn();
     await requireAuth(req, mockResponse(), next);
-    expect(req.user).toEqual({ _id: ID_A, email: 'a@b.c', role: 'admin' });
+    expect(req.user).toEqual({ _id: ID_A, email: 'a@b.c', role: 'admin', store_id: null });
     expect(next).toHaveBeenCalledWith();
   });
 
