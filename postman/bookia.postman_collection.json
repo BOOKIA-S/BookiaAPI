@@ -40,6 +40,14 @@
     {
       "key": "newOfferId",
       "value": ""
+    },
+    {
+      "key": "offerId",
+      "value": ""
+    },
+    {
+      "key": "reservationId",
+      "value": ""
     }
   ],
   "item": [
@@ -103,7 +111,8 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
-                  "pm.collectionVariables.set(\"bookId\", pm.response.json().items[0]._id);"
+                  "pm.collectionVariables.set(\"bookId\", pm.response.json().items[0]._id);",
+                  "pm.collectionVariables.set(\"offerId\", pm.response.json().items[0].offers[0]._id);"
                 ]
               }
             }
@@ -226,7 +235,7 @@
       ]
     },
     {
-      "name": "2. Reader account and favorites",
+      "name": "2. Reader account, favorites and reservations",
       "item": [
         {
           "name": "Register reader (409 if it already exists)",
@@ -369,6 +378,84 @@
               "script": {
                 "type": "text/javascript",
                 "exec": ["pm.test(\"status 200\", () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reserve a copy",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reservations",
+              "host": ["{{baseUrl}}"],
+              "path": ["reservations"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"offer_id\": \"{{offerId}}\",\n  \"quantity\": 1\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"reservationId\", pm.response.json()._id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "My reservations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reservations/mine",
+              "host": ["{{baseUrl}}"],
+              "path": ["reservations", "mine"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test(\"status 200\", () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancel my reservation",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reservations/{{reservationId}}/cancel",
+              "host": ["{{baseUrl}}"],
+              "path": ["reservations", "{{reservationId}}", "cancel"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"cancelled\", () => pm.expect(pm.response.json().status).to.eql(\"cancelada\"));"
+                ]
               }
             }
           ]
@@ -676,6 +763,33 @@
                   "language": "json"
                 }
               }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test(\"status 200\", () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "All reservations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reservations/manage?status=cancelada",
+              "host": ["{{baseUrl}}"],
+              "path": ["reservations", "manage"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "cancelada"
+                }
+              ]
             }
           },
           "event": [

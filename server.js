@@ -2,6 +2,8 @@
 const app = require('./app');
 const { connectDb, disconnectDb } = require('./config/db');
 const { PORT, assertRequiredEnv } = require('./config/env');
+const { expireOverdue } = require('./controllers/reservationController');
+const { EXPIRY_SWEEP_INTERVAL_MS } = require('./utils/reservationRules');
 
 const SHUTDOWN_SIGNALS = ['SIGINT', 'SIGTERM'];
 
@@ -12,10 +14,19 @@ async function start() {
     console.log(`BOOKIA API listening on port ${PORT}`);
   });
 
+  // Reservations also expire lazily on every read; this sweep returns stock nobody asks about.
+  const expirySweep = setInterval(() => {
+    expireOverdue().catch((error) =>
+      console.error('Reservation expiry sweep failed:', error.message)
+    );
+  }, EXPIRY_SWEEP_INTERVAL_MS);
+  expirySweep.unref();
+
   let isShuttingDown = false;
   const shutdown = async (signal) => {
     if (isShuttingDown) return;
     isShuttingDown = true;
+    clearInterval(expirySweep);
     console.log(`${signal} received, shutting down`);
     server.close(async () => {
       await disconnectDb();
