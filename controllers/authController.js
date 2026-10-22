@@ -26,7 +26,13 @@ function cookieOptions() {
 }
 
 function toPublicUser(user) {
-  return { _id: user._id, email: user.email, name: user.name ?? '', role: user.role };
+  return {
+    _id: user._id,
+    email: user.email,
+    name: user.name ?? '',
+    role: user.role,
+    created_at: user.created_at,
+  };
 }
 
 function startSession(res, user) {
@@ -107,4 +113,18 @@ function me(req, res) {
   res.json({ user: toPublicUser(req.user) });
 }
 
-module.exports = { register, login, logout, me };
+/** PATCH /api/auth/me (requireAuth runs first): lets the signed-in user rename themselves. */
+async function updateMe(req, res) {
+  const name = toCleanString(req.body?.name, MAX_NAME_LENGTH);
+  if (!name) throw new HttpError(400, 'Name is required');
+
+  const user = await User.findByIdAndUpdate(
+    req.user._id,
+    { name },
+    { new: true, runValidators: true, projection: 'email name role created_at' }
+  ).lean();
+  if (!user) throw new HttpError(401, 'Invalid or expired session');
+  res.json({ user: toPublicUser(user) });
+}
+
+module.exports = { register, login, logout, me, updateMe };
