@@ -1,5 +1,5 @@
 // Seeds the database: upserts the admin user and replaces books, stores and offers
-// with sample data. Usage: `npm run seed` (requires MONGODB_URI, ADMIN_EMAIL, ADMIN_PASSWORD).
+// with sample data (store owner accounts are removed with the old stores). Usage: `npm run seed` (requires MONGODB_URI, ADMIN_EMAIL, ADMIN_PASSWORD).
 const bcrypt = require('bcrypt');
 const { connectDb, disconnectDb } = require('../config/db');
 const { BCRYPT_SALT_ROUNDS, assertRequiredEnv } = require('../config/env');
@@ -30,6 +30,9 @@ async function seedAdmin() {
 
 async function seedCatalog() {
   await Promise.all([Offer.deleteMany({}), Book.deleteMany({}), Store.deleteMany({})]);
+  // Store owner accounts point at the stores just removed, so they go too.
+  const { deletedCount: removedOwners } = await User.deleteMany({ role: ROLES.STORE_OWNER });
+  if (removedOwners) console.log(`Removed ${removedOwners} store owner accounts`);
 
   const storeDocs = await Store.insertMany(STORES.map(({ key: _key, ...store }) => store));
   const bookDocs = await Book.insertMany(BOOKS.map(({ key: _key, ...book }) => book));
