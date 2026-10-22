@@ -22,6 +22,7 @@ const ownerDoc = {
   name: 'Lucía',
   role: 'store_owner',
   store_id: { _id: ID_B, name: 'Librería Azalea' },
+  must_change_password: true,
   created_at: '2026-10-22T00:00:00.000Z',
 };
 const ownerView = {
@@ -31,6 +32,7 @@ const ownerView = {
   role: 'store_owner',
   store_id: ID_B,
   store: { _id: ID_B, name: 'Librería Azalea' },
+  must_change_password: true,
   created_at: '2026-10-22T00:00:00.000Z',
 };
 const validBody = {
@@ -70,6 +72,7 @@ describe('createStoreOwner', () => {
       password_hash: 'hashed',
       role: 'store_owner',
       store_id: ID_B,
+      must_change_password: true,
     });
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith({ user: ownerView });

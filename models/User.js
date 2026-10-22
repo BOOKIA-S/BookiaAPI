@@ -29,6 +29,8 @@ const userSchema = new mongoose.Schema(
         'store_id is required for store owners',
       ],
     },
+    // Set when an admin creates the account; the user must pick a new password before anything else.
+    must_change_password: { type: Boolean, default: false },
     favorite_book_ids: {
       type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Book' }],
       default: [],

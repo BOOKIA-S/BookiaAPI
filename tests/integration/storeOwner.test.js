@@ -18,6 +18,7 @@ jest.mock('../../models/User', () => modelMock());
 jest.mock('../../models/AuditLog', () => modelMock());
 
 const request = require('supertest');
+const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const app = require('../../app');
 const Book = require('../../models/Book');
@@ -208,5 +209,74 @@ describe('admin manages store owner accounts', () => {
     User.findById.mockReturnValue(mockQuery({ ...ADMIN, role: 'reader' }));
     const res = await request(app).get('/api/users').set('Cookie', adminCookie());
     expect(res.status).toBe(403);
+  });
+});
+
+describe('forced password change for a new store owner', () => {
+  const PENDING = { ...OWNER, must_change_password: true };
+
+  beforeEach(() => User.findById.mockReturnValue(mockQuery(PENDING)));
+
+  it('blocks protected routes with 403 PASSWORD_CHANGE_REQUIRED', async () => {
+    const res = await request(app)
+      .put(`/api/stores/${OWN_STORE}`)
+      .set('Cookie', cookie())
+      .send({ name: 'Nueva' });
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe('PASSWORD_CHANGE_REQUIRED');
+    expect(Store.findByIdAndUpdate).not.toHaveBeenCalled();
+
+    const rename = await request(app)
+      .patch('/api/auth/me')
+      .set('Cookie', cookie())
+      .send({ name: 'X' });
+    expect(rename.body.code).toBe('PASSWORD_CHANGE_REQUIRED');
+  });
+
+  it('still answers GET /api/auth/me with the flag and allows logout', async () => {
+    const me = await request(app).get('/api/auth/me').set('Cookie', cookie());
+    expect(me.status).toBe(200);
+    expect(me.body.user.must_change_password).toBe(true);
+    const logout = await request(app).post('/api/auth/logout').set('Cookie', cookie());
+    expect(logout.status).toBe(204);
+  });
+
+  it('PATCH /api/auth/password replaces the password and clears the flag', async () => {
+    const doc = { ...PENDING, password_hash: await bcrypt.hash('inicial123', 4) };
+    doc.save = jest.fn().mockResolvedValue(doc);
+    User.findById.mockReturnValueOnce(mockQuery(PENDING)).mockReturnValueOnce(mockQuery(doc));
+    const res = await request(app)
+      .patch('/api/auth/password')
+      .set('Cookie', cookie())
+      .send({ current_password: 'inicial123', new_password: 'nueva-segura' });
+    expect(res.status).toBe(200);
+    expect(res.body.user.must_change_password).toBe(false);
+    expect(doc.save).toHaveBeenCalled();
+    expect(await bcrypt.compare('nueva-segura', doc.password_hash)).toBe(true);
+  });
+
+  it('rejects a wrong current password, a short one and reusing the same one', async () => {
+    const doc = { ...PENDING, password_hash: await bcrypt.hash('inicial123', 4), save: jest.fn() };
+    User.findById.mockImplementation((id, fields) => mockQuery(fields ? PENDING : doc));
+    const send = (body) =>
+      request(app).patch('/api/auth/password').set('Cookie', cookie()).send(body);
+
+    const wrong = await send({ current_password: 'otra-cosa', new_password: 'nueva-segura' });
+    expect(wrong.status).toBe(400);
+    expect(wrong.body.message).toBe('Current password is incorrect');
+    const short = await send({ current_password: 'inicial123', new_password: 'corta' });
+    expect(short.status).toBe(400);
+    const same = await send({ current_password: 'inicial123', new_password: 'inicial123' });
+    expect(same.status).toBe(400);
+    const missing = await send({ new_password: 'nueva-segura' });
+    expect(missing.status).toBe(400);
+    expect(doc.save).not.toHaveBeenCalled();
+  });
+
+  it('requires a session', async () => {
+    const res = await request(app)
+      .patch('/api/auth/password')
+      .send({ current_password: 'a', new_password: 'nueva-segura' });
+    expect(res.status).toBe(401);
   });
 });

@@ -150,7 +150,9 @@ describe('auth flow', () => {
       .post('/api/auth/login')
       .send({ email: 'admin@test.dev', password: 'correct-horse' });
     expect(login.status).toBe(200);
-    expect(login.body).toEqual({ user: { ...ADMIN, name: '', store_id: null } });
+    expect(login.body).toEqual({
+      user: { ...ADMIN, name: '', store_id: null, must_change_password: false },
+    });
     const cookie = login.headers['set-cookie'][0];
     expect(cookie).toMatch(/^token=/);
     expect(cookie).toMatch(/HttpOnly/);
@@ -158,7 +160,9 @@ describe('auth flow', () => {
 
     const me = await request(app).get('/api/auth/me').set('Cookie', cookie.split(';')[0]);
     expect(me.status).toBe(200);
-    expect(me.body).toEqual({ user: { ...ADMIN, name: '', store_id: null } });
+    expect(me.body).toEqual({
+      user: { ...ADMIN, name: '', store_id: null, must_change_password: false },
+    });
 
     const logout = await request(app).post('/api/auth/logout');
     expect(logout.status).toBe(204);
@@ -185,7 +189,14 @@ describe('auth flow', () => {
       .send({ name: 'Ana', email: 'ana@test.dev', password: 'lectora123', role: 'admin' });
     expect(res.status).toBe(201);
     expect(res.body).toEqual({
-      user: { _id: ID_B, email: 'ana@test.dev', name: 'Ana', role: 'reader', store_id: null },
+      user: {
+        _id: ID_B,
+        email: 'ana@test.dev',
+        name: 'Ana',
+        role: 'reader',
+        store_id: null,
+        must_change_password: false,
+      },
     });
     expect(res.headers['set-cookie'][0]).toMatch(/^token=.*HttpOnly/);
     const created = User.create.mock.calls[0][0];
@@ -218,6 +229,7 @@ describe('auth flow', () => {
       ...ADMIN,
       name: 'Ana Lectora',
       store_id: null,
+      must_change_password: false,
       created_at: '2026-10-20T00:00:00.000Z',
     });
     const [id, update] = User.findByIdAndUpdate.mock.calls[0];

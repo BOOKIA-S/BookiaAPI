@@ -2,12 +2,17 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { JWT_SECRET } = require('../config/env');
-const { AUTH_COOKIE_NAME } = require('../config/constants');
+const { AUTH_COOKIE_NAME, PASSWORD_CHANGE_REQUIRED } = require('../config/constants');
 const { HttpError } = require('../utils/httpError');
 const { isValidObjectId } = require('../utils/sanitize');
 
-/** Verifies the JWT cookie and attaches `req.user = { _id, email, name, role, store_id, created_at }`. */
-async function requireAuth(req, res, next) {
+const SESSION_FIELDS = 'email name role store_id must_change_password created_at';
+
+/**
+ * Verifies the JWT cookie and attaches
+ * `req.user = { _id, email, name, role, store_id, must_change_password, created_at }`.
+ */
+async function loadSessionUser(req) {
   const token = req.cookies?.[AUTH_COOKIE_NAME];
   if (!token) throw new HttpError(401, 'Authentication required');
 
@@ -19,7 +24,7 @@ async function requireAuth(req, res, next) {
   }
   if (!isValidObjectId(payload?.sub)) throw new HttpError(401, 'Invalid or expired session');
 
-  const user = await User.findById(payload.sub, 'email name role store_id created_at').lean();
+  const user = await User.findById(payload.sub, SESSION_FIELDS).lean();
   if (!user) throw new HttpError(401, 'Invalid or expired session');
 
   req.user = {
@@ -28,8 +33,26 @@ async function requireAuth(req, res, next) {
     name: user.name,
     role: user.role,
     store_id: user.store_id ?? null,
+    must_change_password: Boolean(user.must_change_password),
     created_at: user.created_at,
   };
+}
+
+/**
+ * Authenticates without enforcing the pending password change. Only the routes that let
+ * the user finish it (GET /me, PATCH /password) use this directly.
+ */
+async function requireSession(req, res, next) {
+  await loadSessionUser(req);
+  next();
+}
+
+/** Authenticates and rejects with 403 PASSWORD_CHANGE_REQUIRED while the password is pending. */
+async function requireAuth(req, res, next) {
+  await loadSessionUser(req);
+  if (req.user.must_change_password) {
+    throw new HttpError(403, 'You must change your password first', PASSWORD_CHANGE_REQUIRED);
+  }
   next();
 }
 
@@ -45,4 +68,4 @@ function requireRole(...roles) {
   };
 }
 
-module.exports = { requireAuth, requireRole };
+module.exports = { requireSession, requireAuth, requireRole };

@@ -30,7 +30,14 @@ describe('login', () => {
     expect(jwt.verify(token, process.env.JWT_SECRET).sub).toBe(ID_A);
     expect(options).toMatchObject({ httpOnly: true, sameSite: 'strict', secure: false });
     expect(res.json).toHaveBeenCalledWith({
-      user: { _id: ID_A, email: 'admin@test.dev', name: '', role: 'admin', store_id: null },
+      user: {
+        _id: ID_A,
+        email: 'admin@test.dev',
+        name: '',
+        role: 'admin',
+        store_id: null,
+        must_change_password: false,
+      },
     });
   });
 
@@ -112,7 +119,14 @@ describe('register', () => {
     });
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith({
-      user: { _id: ID_A, email: 'ana@test.dev', name: 'Ana', role: 'reader', store_id: null },
+      user: {
+        _id: ID_A,
+        email: 'ana@test.dev',
+        name: 'Ana',
+        role: 'reader',
+        store_id: null,
+        must_change_password: false,
+      },
     });
     const [, token] = res.cookie.mock.calls[0];
     expect(jwt.verify(token, process.env.JWT_SECRET)).toMatchObject({ sub: ID_A, role: 'reader' });
@@ -165,5 +179,7 @@ it('me returns the authenticated user', () => {
   const res = mockResponse();
   const req = mockRequest();
   controller.me(req, res);
-  expect(res.json).toHaveBeenCalledWith({ user: { ...req.user, name: '', store_id: null } });
+  expect(res.json).toHaveBeenCalledWith({
+    user: { ...req.user, name: '', store_id: null, must_change_password: false },
+  });
 });

@@ -33,6 +33,7 @@ function toPublicUser(user) {
     name: user.name ?? '',
     role: user.role,
     store_id: user.store_id ?? null,
+    must_change_password: Boolean(user.must_change_password),
     created_at: user.created_at,
   };
 }
@@ -110,7 +111,7 @@ function logout(req, res) {
   res.status(204).end();
 }
 
-/** GET /api/auth/me (requireAuth runs first) */
+/** GET /api/auth/me (requireSession runs first, so it works while a password change is pending) */
 function me(req, res) {
   res.json({ user: toPublicUser(req.user) });
 }
@@ -123,10 +124,51 @@ async function updateMe(req, res) {
   const user = await User.findByIdAndUpdate(
     req.user._id,
     { name },
-    { new: true, runValidators: true, projection: 'email name role store_id created_at' }
+    {
+      new: true,
+      runValidators: true,
+      projection: 'email name role store_id must_change_password created_at',
+    }
   ).lean();
   if (!user) throw new HttpError(401, 'Invalid or expired session');
   res.json({ user: toPublicUser(user) });
 }
 
-module.exports = { register, login, logout, me, updateMe };
+/**
+ * PATCH /api/auth/password body { current_password, new_password } (requireSession runs first).
+ * Clears `must_change_password`, so a store owner can leave the forced-change screen.
+ */
+async function changePassword(req, res) {
+  const currentPassword = req.body?.current_password;
+  const newPassword = req.body?.new_password;
+  if (
+    typeof currentPassword !== 'string' ||
+    !currentPassword ||
+    currentPassword.length > MAX_PASSWORD_LENGTH
+  ) {
+    throw new HttpError(400, 'Current password is required');
+  }
+  if (
+    typeof newPassword !== 'string' ||
+    newPassword.length < MIN_PASSWORD_LENGTH ||
+    newPassword.length > MAX_PASSWORD_LENGTH
+  ) {
+    throw new HttpError(400, `Password must have at least ${MIN_PASSWORD_LENGTH} characters`);
+  }
+  if (newPassword === currentPassword) {
+    throw new HttpError(400, 'New password must be different from the current one');
+  }
+
+  const user = await User.findById(req.user._id).select('+password_hash');
+  if (!user) throw new HttpError(401, 'Invalid or expired session');
+  if (!(await bcrypt.compare(currentPassword, user.password_hash))) {
+    throw new HttpError(400, 'Current password is incorrect');
+  }
+
+  user.password_hash = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS);
+  user.must_change_password = false;
+  await user.save();
+  res.json({ user: toPublicUser(user) });
+}
+
+module.exports = { register, login, logout, me, updateMe, changePassword };

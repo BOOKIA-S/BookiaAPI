@@ -1,4 +1,4 @@
-// 404 fallback and central error handler. Always responds with { message }.
+// 404 fallback and central error handler. Always responds with { message } (plus { code } when set).
 const { IS_TEST } = require('../config/env');
 
 function notFound(req, res) {
@@ -9,7 +9,9 @@ function notFound(req, res) {
 // eslint-disable-next-line no-unused-vars
 function errorHandler(err, req, res, next) {
   if (err.name === 'HttpError') {
-    return res.status(err.status).json({ message: err.message });
+    const body = { message: err.message };
+    if (err.code) body.code = err.code;
+    return res.status(err.status).json(body);
   }
   if (err.name === 'ValidationError' && err.errors) {
     const message = Object.values(err.errors)

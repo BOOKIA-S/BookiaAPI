@@ -1,7 +1,7 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 const authController = require('../controllers/authController');
-const { requireAuth } = require('../middlewares/auth');
+const { requireAuth, requireSession } = require('../middlewares/auth');
 
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_ATTEMPTS = 20;
@@ -18,7 +18,8 @@ const loginLimiter = rateLimit({
 router.post('/register', loginLimiter, authController.register);
 router.post('/login', loginLimiter, authController.login);
 router.post('/logout', authController.logout);
-router.get('/me', requireAuth, authController.me);
+router.get('/me', requireSession, authController.me);
 router.patch('/me', requireAuth, authController.updateMe);
+router.patch('/password', loginLimiter, requireSession, authController.changePassword);
 
 module.exports = router;
