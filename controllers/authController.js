@@ -20,6 +20,7 @@ const {
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_NAME_LENGTH = 80;
 const ADMIN_PORTAL = 'admin';
+const ADMIN_PORTAL_ROLES = [ROLES.ADMIN, ROLES.STORE_OWNER];
 
 function cookieOptions() {
   return { httpOnly: true, secure: IS_PRODUCTION, sameSite: 'strict', path: '/' };
@@ -31,6 +32,7 @@ function toPublicUser(user) {
     email: user.email,
     name: user.name ?? '',
     role: user.role,
+    store_id: user.store_id ?? null,
     created_at: user.created_at,
   };
 }
@@ -76,8 +78,8 @@ async function register(req, res) {
 }
 
 /**
- * POST /api/auth/login. With `portal: "admin"` only administrators may sign in,
- * so the admin access screen never opens a reader session.
+ * POST /api/auth/login. With `portal: "admin"` only administrators and store owners
+ * may sign in, so the admin access screen never opens a reader session.
  */
 async function login(req, res) {
   const email = toCleanString(req.body?.email, 254)?.toLowerCase();
@@ -94,8 +96,8 @@ async function login(req, res) {
   const user = await User.findOne({ email }).select('+password_hash');
   const isValid = user ? await bcrypt.compare(password, user.password_hash) : false;
   if (!isValid) throw new HttpError(401, 'Invalid email or password');
-  if (req.body?.portal === ADMIN_PORTAL && user.role !== ROLES.ADMIN) {
-    throw new HttpError(403, 'This account is not an administrator');
+  if (req.body?.portal === ADMIN_PORTAL && !ADMIN_PORTAL_ROLES.includes(user.role)) {
+    throw new HttpError(403, 'This account is not an administrator or store owner');
   }
 
   startSession(res, user);
@@ -121,7 +123,7 @@ async function updateMe(req, res) {
   const user = await User.findByIdAndUpdate(
     req.user._id,
     { name },
-    { new: true, runValidators: true, projection: 'email name role created_at' }
+    { new: true, runValidators: true, projection: 'email name role store_id created_at' }
   ).lean();
   if (!user) throw new HttpError(401, 'Invalid or expired session');
   res.json({ user: toPublicUser(user) });

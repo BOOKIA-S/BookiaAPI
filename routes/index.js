@@ -7,6 +7,7 @@ const offerRoutes = require('./offerRoutes');
 const auditLogRoutes = require('./auditLogRoutes');
 const favoriteRoutes = require('./favoriteRoutes');
 const reservationRoutes = require('./reservationRoutes');
+const userRoutes = require('./userRoutes');
 
 const router = express.Router();
 
@@ -18,5 +19,6 @@ router.use('/offers', offerRoutes);
 router.use('/audit-logs', auditLogRoutes);
 router.use('/favorites', favoriteRoutes);
 router.use('/reservations', reservationRoutes);
+router.use('/users', userRoutes);
 
 module.exports = router;

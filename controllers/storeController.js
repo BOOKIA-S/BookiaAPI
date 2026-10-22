@@ -1,11 +1,12 @@
 // Business logic for stores: public listing/detail and admin CRUD.
 const Store = require('../models/Store');
 const Offer = require('../models/Offer');
+const User = require('../models/User');
 const { HttpError } = require('../utils/httpError');
 const { logAudit } = require('../utils/auditLogger');
 const { pickFields } = require('../utils/sanitize');
 const { withAvailability } = require('../utils/offerView');
-const { AUDIT_ACTIONS, AUDIT_ENTITIES } = require('../config/constants');
+const { AUDIT_ACTIONS, AUDIT_ENTITIES, ROLES } = require('../config/constants');
 
 const STORE_FIELDS = ['name', 'address', 'phone', 'schedule', 'maps_url'];
 const UPDATE_OPTIONS = { returnDocument: 'after', runValidators: true };
@@ -51,8 +52,11 @@ async function updateStore(req, res) {
   res.json(store);
 }
 
-/** DELETE /api/stores/:id (cascades to the store's offers) */
+/** DELETE /api/stores/:id (cascades to the store's offers; 409 while owners are assigned) */
 async function deleteStore(req, res) {
+  if (await User.exists({ role: ROLES.STORE_OWNER, store_id: req.params.id })) {
+    throw new HttpError(409, 'Reassign or delete the store owner accounts of this store first');
+  }
   const store = await Store.findByIdAndDelete(req.params.id);
   if (!store) throw new HttpError(404, 'Store not found');
   await Offer.deleteMany({ store_id: store._id });

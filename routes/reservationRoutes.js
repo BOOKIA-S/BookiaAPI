@@ -3,10 +3,9 @@ const reservationController = require('../controllers/reservationController');
 const { requireAuth, requireRole } = require('../middlewares/auth');
 const { validateObjectId } = require('../middlewares/validation');
 const { ROLES } = require('../config/constants');
-const { STORE_OWNER_ROLE } = require('../utils/reservationRules');
 
 const router = express.Router();
-const requireManager = requireRole(ROLES.ADMIN, STORE_OWNER_ROLE);
+const requireManager = requireRole(ROLES.ADMIN, ROLES.STORE_OWNER);
 
 router.use(requireAuth);
 router.post('/', requireRole(ROLES.READER), reservationController.createReservation);

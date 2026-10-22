@@ -1,9 +1,14 @@
 // Application-wide constants shared by models, middlewares and controllers.
-const ROLES = Object.freeze({ ADMIN: 'admin', READER: 'reader' });
+const ROLES = Object.freeze({ ADMIN: 'admin', READER: 'reader', STORE_OWNER: 'store_owner' });
 
 const AUDIT_ACTIONS = Object.freeze({ CREATE: 'create', UPDATE: 'update', DELETE: 'delete' });
 
-const AUDIT_ENTITIES = Object.freeze({ BOOK: 'book', STORE: 'store', OFFER: 'offer' });
+const AUDIT_ENTITIES = Object.freeze({
+  BOOK: 'book',
+  STORE: 'store',
+  OFFER: 'offer',
+  USER: 'user',
+});
 
 const AUTH_COOKIE_NAME = 'token';
 

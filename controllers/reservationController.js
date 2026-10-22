@@ -9,7 +9,6 @@ const {
   ACTIVE_STATUSES,
   RELEASING_STATUSES,
   MANAGER_TRANSITIONS,
-  STORE_OWNER_ROLE,
   MAX_RESERVATION_QUANTITY,
   MAX_ACTIVE_RESERVATIONS,
   expiryFrom,
@@ -163,7 +162,7 @@ async function cancelMyReservation(req, res) {
  */
 function managerScope(user) {
   if (user.role === ROLES.ADMIN) return {};
-  if (user.role === STORE_OWNER_ROLE && user.store_id) return { store_id: user.store_id };
+  if (user.role === ROLES.STORE_OWNER && user.store_id) return { store_id: user.store_id };
   throw new HttpError(403, 'Forbidden');
 }
 

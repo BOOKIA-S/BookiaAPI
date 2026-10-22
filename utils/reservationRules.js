@@ -26,9 +26,6 @@ const MANAGER_TRANSITIONS = Object.freeze({
   [RESERVATION_STATUSES.CANCELLED]: ACTIVE_STATUSES,
 });
 
-// Role literal owned by the store-owner feature; kept here so reservations do not depend on it.
-const STORE_OWNER_ROLE = 'store_owner';
-
 const RESERVATION_TTL_MS = 48 * 60 * 60 * 1000;
 const MAX_RESERVATION_QUANTITY = 5;
 const MAX_ACTIVE_RESERVATIONS = 10;
@@ -44,7 +41,6 @@ module.exports = {
   ACTIVE_STATUSES,
   RELEASING_STATUSES,
   MANAGER_TRANSITIONS,
-  STORE_OWNER_ROLE,
   RESERVATION_TTL_MS,
   MAX_RESERVATION_QUANTITY,
   MAX_ACTIVE_RESERVATIONS,

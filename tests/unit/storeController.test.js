@@ -6,17 +6,22 @@ jest.mock('../../models/Store', () => ({
   findByIdAndDelete: jest.fn(),
 }));
 jest.mock('../../models/Offer', () => ({ find: jest.fn(), deleteMany: jest.fn() }));
+jest.mock('../../models/User', () => ({ exists: jest.fn() }));
 jest.mock('../../utils/auditLogger', () => ({ logAudit: jest.fn() }));
 
 const Store = require('../../models/Store');
 const Offer = require('../../models/Offer');
+const User = require('../../models/User');
 const { logAudit } = require('../../utils/auditLogger');
 const controller = require('../../controllers/storeController');
 const { mockQuery, mockRequest, mockResponse, ID_A } = require('../helpers/mocks');
 
 const store = { _id: ID_A, name: 'Librería Azalea', address: 'Av. Juárez 1' };
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+  User.exists.mockResolvedValue(null);
+});
 
 it('lists stores sorted by name', async () => {
   const query = mockQuery([store]);
@@ -84,4 +89,12 @@ it('returns 404 when updating or deleting a missing store', async () => {
   await expect(controller.updateStore(req, mockResponse())).rejects.toMatchObject({ status: 404 });
   await expect(controller.deleteStore(req, mockResponse())).rejects.toMatchObject({ status: 404 });
   expect(logAudit).not.toHaveBeenCalled();
+});
+
+it('refuses to delete a store that still has owner accounts', async () => {
+  User.exists.mockResolvedValue({ _id: 'owner' });
+  const req = mockRequest({ params: { id: ID_A } });
+  await expect(controller.deleteStore(req, mockResponse())).rejects.toMatchObject({ status: 409 });
+  expect(User.exists).toHaveBeenCalledWith({ role: 'store_owner', store_id: ID_A });
+  expect(Store.findByIdAndDelete).not.toHaveBeenCalled();
 });
