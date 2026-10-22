@@ -80,31 +80,36 @@ Prueba rápida: `curl http://localhost:4000/api/health` responde `{"status":"ok"
 
 Todas las rutas van bajo `/api`. Las respuestas son JSON con campos en snake_case; los errores siempre son `{ "message": "..." }`.
 
-| Método | Ruta                 | Acceso  | Descripción                                                                                                    |
-| ------ | -------------------- | ------- | -------------------------------------------------------------------------------------------------------------- |
-| GET    | `/health`            | público | Estado de la API                                                                                               |
-| GET    | `/books`             | público | Búsqueda paginada con filtros `q`, `genre`, `publisher`, `store_id`, `min_price`, `max_price`, `page`, `limit` |
-| GET    | `/books/filters`     | público | Géneros y editoriales disponibles                                                                              |
-| GET    | `/books/:id`         | público | Ficha del libro con las tiendas que lo venden                                                                  |
-| GET    | `/stores`            | público | Directorio de establecimientos                                                                                 |
-| GET    | `/stores/:id`        | público | Establecimiento con su catálogo                                                                                |
-| POST   | `/auth/register`     | público | Crea una cuenta de lector e inicia sesión                                                                      |
-| POST   | `/auth/login`        | público | Inicia sesión (`portal: "admin"` exige rol admin)                                                              |
-| POST   | `/auth/logout`       | público | Cierra sesión                                                                                                  |
-| GET    | `/auth/me`           | sesión  | Usuario actual                                                                                                 |
-| GET    | `/favorites`         | sesión  | Libros favoritos del usuario                                                                                   |
-| PUT    | `/favorites/:bookId` | sesión  | Agrega un favorito                                                                                             |
-| DELETE | `/favorites/:bookId` | sesión  | Quita un favorito                                                                                              |
-| POST   | `/books`             | admin   | Crea un libro (opcional `initial_offer` con tienda, precio y existencias)                                      |
-| PUT    | `/books/:id`         | admin   | Edita un libro                                                                                                 |
-| DELETE | `/books/:id`         | admin   | Borra un libro y sus ofertas                                                                                   |
-| POST   | `/stores`            | admin   | Crea un establecimiento                                                                                        |
-| PUT    | `/stores/:id`        | admin   | Edita un establecimiento                                                                                       |
-| DELETE | `/stores/:id`        | admin   | Borra un establecimiento y sus ofertas                                                                         |
-| POST   | `/offers`            | admin   | Registra precio y existencias de un libro en una tienda                                                        |
-| PUT    | `/offers/:id`        | admin   | Cambia precio o existencias                                                                                    |
-| DELETE | `/offers/:id`        | admin   | Quita la oferta                                                                                                |
-| GET    | `/audit-logs`        | admin   | Últimas operaciones de escritura                                                                               |
+| Método | Ruta                       | Acceso        | Descripción                                                                                                    |
+| ------ | -------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------- |
+| GET    | `/health`                  | público       | Estado de la API                                                                                               |
+| GET    | `/books`                   | público       | Búsqueda paginada con filtros `q`, `genre`, `publisher`, `store_id`, `min_price`, `max_price`, `page`, `limit` |
+| GET    | `/books/filters`           | público       | Géneros y editoriales disponibles                                                                              |
+| GET    | `/books/:id`               | público       | Ficha del libro con las tiendas que lo venden                                                                  |
+| GET    | `/stores`                  | público       | Directorio de establecimientos                                                                                 |
+| GET    | `/stores/:id`              | público       | Establecimiento con su catálogo                                                                                |
+| POST   | `/auth/register`           | público       | Crea una cuenta de lector e inicia sesión                                                                      |
+| POST   | `/auth/login`              | público       | Inicia sesión (`portal: "admin"` exige rol admin)                                                              |
+| POST   | `/auth/logout`             | público       | Cierra sesión                                                                                                  |
+| GET    | `/auth/me`                 | sesión        | Usuario actual                                                                                                 |
+| GET    | `/favorites`               | sesión        | Libros favoritos del usuario                                                                                   |
+| PUT    | `/favorites/:bookId`       | sesión        | Agrega un favorito                                                                                             |
+| DELETE | `/favorites/:bookId`       | sesión        | Quita un favorito                                                                                              |
+| POST   | `/reservations`            | lector        | Aparta ejemplares de una oferta por 48 h (`offer_id`, `quantity` 1-5); descuenta existencias                   |
+| GET    | `/reservations/mine`       | sesión        | Reservas del usuario                                                                                           |
+| PATCH  | `/reservations/:id/cancel` | sesión        | El lector cancela su reserva y se liberan los ejemplares                                                       |
+| GET    | `/reservations/manage`     | admin o dueño | Reservas de todas las tiendas (admin) o solo de la suya (dueño)                                                |
+| PATCH  | `/reservations/:id/status` | admin o dueño | Confirma, entrega o cancela una reserva                                                                        |
+| POST   | `/books`                   | admin         | Crea un libro (opcional `initial_offer` con tienda, precio y existencias)                                      |
+| PUT    | `/books/:id`               | admin         | Edita un libro                                                                                                 |
+| DELETE | `/books/:id`               | admin         | Borra un libro y sus ofertas                                                                                   |
+| POST   | `/stores`                  | admin         | Crea un establecimiento                                                                                        |
+| PUT    | `/stores/:id`              | admin         | Edita un establecimiento                                                                                       |
+| DELETE | `/stores/:id`              | admin         | Borra un establecimiento y sus ofertas                                                                         |
+| POST   | `/offers`                  | admin         | Registra precio y existencias de un libro en una tienda                                                        |
+| PUT    | `/offers/:id`              | admin         | Cambia precio o existencias                                                                                    |
+| DELETE | `/offers/:id`              | admin         | Quita la oferta                                                                                                |
+| GET    | `/audit-logs`              | admin         | Últimas operaciones de escritura                                                                               |
 
 Cada oferta que devuelve la API trae `stock` (ejemplares) y `is_available` (`stock > 0`, calculado, no se guarda).
 

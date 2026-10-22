@@ -12,6 +12,10 @@ Errors: `{ "message": string }` with the proper HTTP status (see [Errors](#error
   - Every offer returned by the API also carries a derived `is_available` (= `stock > 0`). It is read-only, never stored and ignored if sent.
 - **User**: `_id, email (unique), name, password_hash (never returned), role ('admin' | 'reader'), favorite_book_ids (ref Book[])`
   - Public shape returned by the API: `{ _id, email, name, role }`.
+- **Reservation**: `_id, user_id (ref User), offer_id (ref Offer), store_id (ref Store), book_id (ref Book), price (unit price when reserved), quantity (integer 1-5), status ('pendiente' | 'confirmada' | 'entregada' | 'cancelada' | 'vencida'), expires_at, created_at, updated_at`
+  - Reserving takes the copies out of the offer's `stock` at once (atomic, stock never goes below 0). Cancelling or expiring gives them back; delivering keeps them out (sold).
+  - A `pendiente` or `confirmada` reservation expires 48 h after it was made (`expires_at`). Expiry is applied on every reservation request and by a sweep every 5 minutes.
+  - Reservation responses also carry the populated refs as `book { _id, title, author }`, `store { _id, name, address, phone, schedule }` and, for managers, `user { _id, name, email }`.
 - **AuditLog** (collection `audit_logs`): `_id, user_id, action ('create'|'update'|'delete'), entity ('book'|'store'|'offer'), entity_id, created_at`
 
 ## Public endpoints (no session)
@@ -49,6 +53,17 @@ The JWT travels only in the cookie `token` (httpOnly, `secure` in production, `s
 - `PUT /api/favorites/:bookId` -> `{ book_ids }` (idempotent; 404 if the book does not exist; max 200 favorites)
 - `DELETE /api/favorites/:bookId` -> `{ book_ids }`
 
+## Reservations (signed-in users; no online payment, the reader pays in the store)
+
+- `POST /api/reservations` body `{ offer_id, quantity? (1-5, default 1) }` -> 201 Reservation with status `pendiente`. Role `reader` only (403 otherwise). 404 if the offer does not exist; 409 if the offer has fewer copies than `quantity`; 400 if the reader already has 10 active reservations.
+- `GET /api/reservations/mine` -> `{ items: Reservation[] }` of the signed-in user, most recent first (max 200)
+- `PATCH /api/reservations/:id/cancel` -> Reservation; the owner cancels a `pendiente` or `confirmada` reservation (copies return to stock). 404 if it is not theirs; 409 if it is no longer active.
+
+Store management (role `admin`, or `store_owner` limited to their own `store_id`):
+
+- `GET /api/reservations/manage?status=&store_id=` -> `{ items: Reservation[] }` most recent first (max 200). Admins see every store and may filter by `store_id`; a store owner only ever sees their store.
+- `PATCH /api/reservations/:id/status` body `{ status }` -> Reservation. Allowed changes: `pendiente -> confirmada`, `pendiente|confirmada -> entregada`, `pendiente|confirmada -> cancelada` (copies return to stock). 400 for any other target status; 404 if the reservation does not exist or belongs to another store; 409 if its current status does not allow the change.
+
 ## Admin endpoints (role `admin`; every write creates an `audit_logs` entry)
 
 - `POST /api/books` body `{ title, author, genre?, publisher?, edition?, isbn?, initial_offer? }` -> 201 Book
@@ -64,16 +79,16 @@ Unknown body fields are ignored. Fields with a leading `$` or containing `.` are
 
 ## Errors
 
-| Status | When                                                                    |
-| ------ | ----------------------------------------------------------------------- |
-| 400    | Validation failed, malformed id or JSON body                            |
-| 401    | No session, or the session expired / is invalid                         |
-| 403    | Signed in without the required role (or reader on `portal: "admin"`)    |
-| 404    | Resource or route not found                                             |
-| 409    | Duplicate (email already registered, offer for the same book and store) |
-| 413    | Body larger than 100 KB                                                 |
-| 429    | Too many register/login attempts                                        |
-| 500    | Unexpected error (details are logged, never returned)                   |
+| Status | When                                                                                                                                                      |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 400    | Validation failed, malformed id or JSON body                                                                                                              |
+| 401    | No session, or the session expired / is invalid                                                                                                           |
+| 403    | Signed in without the required role (or reader on `portal: "admin"`)                                                                                      |
+| 404    | Resource or route not found                                                                                                                               |
+| 409    | Duplicate (email already registered, offer for the same book and store), not enough copies to reserve, or a reservation status change that is not allowed |
+| 413    | Body larger than 100 KB                                                                                                                                   |
+| 429    | Too many register/login attempts                                                                                                                          |
+| 500    | Unexpected error (details are logged, never returned)                                                                                                     |
 
 ## Dev setup
 

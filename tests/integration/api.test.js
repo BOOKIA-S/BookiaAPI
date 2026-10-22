@@ -8,6 +8,8 @@ const modelMock = () => ({
   exists: jest.fn(),
   create: jest.fn(),
   findByIdAndUpdate: jest.fn(),
+  findOneAndUpdate: jest.fn(),
+  updateOne: jest.fn(),
   findByIdAndDelete: jest.fn(),
   deleteMany: jest.fn(),
 });
@@ -16,6 +18,7 @@ jest.mock('../../models/Store', () => modelMock());
 jest.mock('../../models/Offer', () => modelMock());
 jest.mock('../../models/User', () => modelMock());
 jest.mock('../../models/AuditLog', () => modelMock());
+jest.mock('../../models/Reservation', () => modelMock());
 
 const request = require('supertest');
 const bcrypt = require('bcrypt');
@@ -26,6 +29,7 @@ const Store = require('../../models/Store');
 const Offer = require('../../models/Offer');
 const User = require('../../models/User');
 const AuditLog = require('../../models/AuditLog');
+const Reservation = require('../../models/Reservation');
 const { mockQuery, ID_A, ID_B, ID_C } = require('../helpers/mocks');
 
 const ADMIN = { _id: ID_A, email: 'admin@test.dev', role: 'admin' };
@@ -270,6 +274,73 @@ describe('favorites', () => {
 
   it('rejects an invalid book id', async () => {
     const res = await request(app).put('/api/favorites/nope').set('Cookie', adminCookie());
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('reservations', () => {
+  const READER = { _id: ID_A, email: 'ana@test.dev', name: 'Ana', role: 'reader' };
+
+  beforeEach(() => {
+    Reservation.find.mockReturnValue(mockQuery([]));
+  });
+
+  it('requires a session', async () => {
+    const res = await request(app).post('/api/reservations').send({ offer_id: ID_C });
+    expect(res.status).toBe(401);
+  });
+
+  it('lets a reader reserve copies of an offer', async () => {
+    User.findById.mockReturnValue(mockQuery(READER));
+    Reservation.countDocuments.mockResolvedValue(0);
+    Offer.findOneAndUpdate.mockReturnValue(
+      mockQuery({ _id: ID_C, book_id: ID_B, store_id: ID_B, price: 99, stock: 0 })
+    );
+    Reservation.create.mockImplementation(async (data) => ({ _id: ID_B, ...data }));
+    const res = await request(app)
+      .post('/api/reservations')
+      .set('Cookie', adminCookie())
+      .send({ offer_id: ID_C, quantity: 1 });
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ offer_id: ID_C, quantity: 1, status: 'pendiente' });
+  });
+
+  it('does not let an admin reserve', async () => {
+    const res = await request(app)
+      .post('/api/reservations')
+      .set('Cookie', adminCookie())
+      .send({ offer_id: ID_C });
+    expect(res.status).toBe(403);
+  });
+
+  it('lists the reader own reservations', async () => {
+    User.findById.mockReturnValue(mockQuery(READER));
+    const res = await request(app).get('/api/reservations/mine').set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ items: [] });
+  });
+
+  it('keeps readers out of the management endpoints', async () => {
+    User.findById.mockReturnValue(mockQuery(READER));
+    const list = await request(app).get('/api/reservations/manage').set('Cookie', adminCookie());
+    const update = await request(app)
+      .patch(`/api/reservations/${ID_C}/status`)
+      .set('Cookie', adminCookie())
+      .send({ status: 'confirmada' });
+    expect(list.status).toBe(403);
+    expect(update.status).toBe(403);
+  });
+
+  it('lets the admin list every reservation', async () => {
+    const res = await request(app).get('/api/reservations/manage').set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ items: [] });
+  });
+
+  it('rejects a malformed reservation id', async () => {
+    const res = await request(app)
+      .patch('/api/reservations/nope/cancel')
+      .set('Cookie', adminCookie());
     expect(res.status).toBe(400);
   });
 });

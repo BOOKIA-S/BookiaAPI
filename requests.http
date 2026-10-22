@@ -65,6 +65,19 @@ GET {{baseUrl}}/favorites
 ### Remove the favorite
 DELETE {{baseUrl}}/favorites/{{search.response.body.$.items[0]._id}}
 
+### Reserve 1 copy of the first offer of the first book (48 h to pick it up)
+# @name reservation
+POST {{baseUrl}}/reservations
+Content-Type: application/json
+
+{ "offer_id": "{{search.response.body.$.items[0].offers[0]._id}}", "quantity": 1 }
+
+### My reservations
+GET {{baseUrl}}/reservations/mine
+
+### Cancel it (the copy goes back to stock)
+PATCH {{baseUrl}}/reservations/{{reservation.response.body.$._id}}/cancel
+
 ### A reader cannot use admin routes (expects 403)
 POST {{baseUrl}}/stores
 Content-Type: application/json
@@ -145,6 +158,9 @@ PUT {{baseUrl}}/offers/{{newOffer.response.body.$._id}}
 Content-Type: application/json
 
 { "price": 95, "stock": 0 }
+
+### Every reservation (admin sees all stores; filter with status= and store_id=)
+GET {{baseUrl}}/reservations/manage?status=pendiente
 
 ### Latest audit log entries
 GET {{baseUrl}}/audit-logs?limit=10
