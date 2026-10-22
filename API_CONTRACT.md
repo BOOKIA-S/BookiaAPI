@@ -1,7 +1,7 @@
 # BOOKIA API contract
 
 Base URL: `/api` (local: `http://localhost:4000/api`). JSON everywhere. Field names are snake_case.
-Errors: `{ "message": string }` with the proper HTTP status (see [Errors](#errors)).
+Errors: `{ "message": string, "code"?: string }` with the proper HTTP status (see [Errors](#errors)).
 
 ## Models
 
@@ -41,12 +41,17 @@ The JWT travels only in the cookie `token` (httpOnly, `secure` in production, `s
 - `POST /api/auth/register` body `{ name, email, password (8-200 chars) }` -> 201 `{ user }` with role `reader` + sets cookie; 409 if the email exists
 - `POST /api/auth/login` body `{ email, password, portal? }` -> `{ user }` + sets cookie; 401 on bad credentials; with `portal: "admin"` only `admin` and `store_owner` accounts may sign in (readers get 403)
 - `POST /api/auth/logout` -> 204, clears cookie
-- `GET /api/auth/me` -> `{ user }` or 401
+- `GET /api/auth/me` -> `{ user }` or 401 (also answers while a password change is pending)
 - `PATCH /api/auth/me` body `{ name (1-80 chars) }` -> `{ user }` with the new name; 400 if the name is empty; 401 without a session. Email, role and password cannot be changed here.
+- `PATCH /api/auth/password` body `{ current_password, new_password (8-200 chars) }` -> `{ user }` with `must_change_password: false`; 400 when a field is missing, the new password is too short, equals the current one, or the current password is incorrect (`"Current password is incorrect"`); 401 without a session. Any signed-in role may use it.
 
-`user` is `{ _id, email, name, role, store_id, created_at }` (`store_id` is `null` unless the role is `store_owner`).
+`user` is `{ _id, email, name, role, store_id, must_change_password, created_at }` (`store_id` is `null` unless the role is `store_owner`).
 
-`register` and `login` share a rate limit of 20 requests per 15 minutes per IP (429 when exceeded).
+### Forced password change
+
+Accounts created by an admin through `POST /api/users` start with `must_change_password: true`. While it is `true`, every route that needs a session answers **403** `{ "message": "You must change your password first", "code": "PASSWORD_CHANGE_REQUIRED" }`, except `GET /api/auth/me`, `PATCH /api/auth/password` and `POST /api/auth/logout`. Changing the password sets the flag to `false`. Self-registered readers and the seeded admin start with `false`. The frontend redirects such accounts to `/cambiar-contrasena` before opening the panel.
+
+`register`, `login` and `password` share a rate limit of 20 requests per 15 minutes per IP (429 when exceeded).
 
 ## Roles
 
@@ -92,7 +97,7 @@ Reservation desk (role `admin`, or `store_owner` limited to their own `store_id`
 
 ### Store owner accounts (`/api/users`, admin only)
 
-`owner` is `{ _id, email, name, role: 'store_owner', store_id, store: { _id, name } | null, created_at }`.
+`owner` is `{ _id, email, name, role: 'store_owner', store_id, store: { _id, name } | null, must_change_password, created_at }`.
 
 - `GET /api/users` -> `{ items: owner[] }` (store owners only, sorted by email)
 - `POST /api/users` body `{ name, email, password (8-200 chars), store_id }` -> 201 `{ user: owner }`; 400 on validation or when the store does not exist; 409 if the email exists. The role is always `store_owner`.
@@ -107,11 +112,11 @@ Unknown body fields are ignored. Fields with a leading `$` or containing `.` are
 | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 400    | Validation failed, malformed id or JSON body                                                                                                                         |
 | 401    | No session, or the session expired / is invalid                                                                                                                      |
-| 403    | Signed in without the required role, store owner outside its store, or reader on `portal: "admin"`                                                                   |
+| 403    | Signed in without the required role, store owner outside its store, reader on `portal: "admin"`, or password change pending (`code: "PASSWORD_CHANGE_REQUIRED"`)     |
 | 404    | Resource or route not found                                                                                                                                          |
 | 409    | Duplicate (email, offer for the same book and store), deleting a store with owners, not enough copies to reserve, or a reservation status change that is not allowed |
 | 413    | Body larger than 100 KB                                                                                                                                              |
-| 429    | Too many register/login attempts                                                                                                                                     |
+| 429    | Too many register/login/password attempts                                                                                                                            |
 | 500    | Unexpected error (details are logged, never returned)                                                                                                                |
 
 ## Dev setup

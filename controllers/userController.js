@@ -16,7 +16,7 @@ const { BCRYPT_SALT_ROUNDS } = require('../config/env');
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_NAME_LENGTH = 80;
-const USER_FIELDS = 'email name role store_id created_at';
+const USER_FIELDS = 'email name role store_id must_change_password created_at';
 const OWNER_FILTER = { role: ROLES.STORE_OWNER };
 
 function toOwnerView(user) {
@@ -28,6 +28,7 @@ function toOwnerView(user) {
     role: user.role,
     store_id: store?._id ?? user.store_id ?? null,
     store: store?.name ? { _id: store._id, name: store.name } : null,
+    must_change_password: Boolean(user.must_change_password),
     created_at: user.created_at,
   };
 }
@@ -76,7 +77,14 @@ async function createStoreOwner(req, res) {
   const password_hash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
   let user;
   try {
-    user = await User.create({ name, email, password_hash, role: ROLES.STORE_OWNER, store_id });
+    user = await User.create({
+      name,
+      email,
+      password_hash,
+      role: ROLES.STORE_OWNER,
+      store_id,
+      must_change_password: true,
+    });
   } catch (error) {
     if (error?.code === 11000) throw new HttpError(409, 'Email is already registered');
     throw error;

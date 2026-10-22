@@ -155,7 +155,8 @@ Todos los modelos usan `created_at` y `updated_at` (salvo `AuditLog`, que solo t
 | `email` | String | Requerido, único, minúsculas, máx. 254 |
 | `name` | String | Máx. 80 |
 | `password_hash` | String | Requerido, nunca se devuelve (`select: false`) |
-| `role` | String | `admin` o `reader` (por defecto `reader`) |
+| `role` | String | `admin`, `reader` o `store_owner` (por defecto `reader`) |
+| `must_change_password` | Boolean | `true` al crear un dueño desde el admin; se pone en `false` al cambiar la contraseña |
 | `favorite_book_ids` | ObjectId[] → Book | Máx. 200 |
 
 ### AuditLog (`audit_logs`)
@@ -203,8 +204,11 @@ Base: `/api` (local `http://localhost:4000/api`). JSON con campos en `snake_case
 | POST | `/auth/logout` | 204, borra la cookie |
 | GET | `/auth/me` | Usuario actual o 401 |
 | PATCH | `/auth/me` | Cambia solo `name` (1 a 80 caracteres) |
+| PATCH | `/auth/password` | `{ current_password, new_password }`: mínimo 8 caracteres y distinta de la actual; pone `must_change_password` en `false` |
 
-`register` y `login` comparten un límite de 20 peticiones por 15 minutos por IP (429).
+**Cambio obligatorio de contraseña.** Un dueño creado por el admin entra con la contraseña inicial y `must_change_password: true`. Mientras siga así, toda ruta con sesión responde 403 con `code: "PASSWORD_CHANGE_REQUIRED"`, salvo `GET /auth/me`, `PATCH /auth/password` y `POST /auth/logout`. El frontend lo lleva a la pantalla "Cambia tu contraseña" (`/cambiar-contrasena`) y no le abre el panel hasta completarla. Cualquier usuario puede cambiar su contraseña voluntariamente desde `/perfil`.
+
+`register`, `login` y `password` comparten un límite de 20 peticiones por 15 minutos por IP (429).
 
 ### Lector (cualquier sesión)
 

@@ -12,6 +12,9 @@ const AUDIT_ENTITIES = Object.freeze({
 
 const AUTH_COOKIE_NAME = 'token';
 
+// Returned with 403 while a user still has to replace the initial password set by an admin.
+const PASSWORD_CHANGE_REQUIRED = 'PASSWORD_CHANGE_REQUIRED';
+
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 200;
 const MAX_FAVORITES = 200;
@@ -26,6 +29,7 @@ module.exports = {
   AUDIT_ACTIONS,
   AUDIT_ENTITIES,
   AUTH_COOKIE_NAME,
+  PASSWORD_CHANGE_REQUIRED,
   MIN_PASSWORD_LENGTH,
   MAX_PASSWORD_LENGTH,
   MAX_FAVORITES,
