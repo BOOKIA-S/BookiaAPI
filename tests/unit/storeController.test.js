@@ -32,6 +32,49 @@ it('lists stores sorted by name', async () => {
   expect(res.json).toHaveBeenCalledWith([store]);
 });
 
+describe('listNearStores', () => {
+  const origin = { lat: '20.1757', lng: '-98.0527' };
+  const near = { _id: 'n', name: 'Cerca', lat: 20.1763, lng: -98.0526 };
+  const nearer = { _id: 'm', name: 'Más cerca', lat: 20.1757, lng: -98.0528 };
+  const far = { _id: 'f', name: 'CDMX', lat: 19.4326, lng: -99.1332 };
+
+  it('returns stores within the radius, nearest first, with distance_km', async () => {
+    Store.find.mockReturnValue(mockQuery([near, far, nearer]));
+    const res = mockResponse();
+    await controller.listNearStores(mockRequest({ query: origin }), res);
+    expect(Store.find).toHaveBeenCalledWith({ lat: { $ne: null }, lng: { $ne: null } });
+    const body = res.json.mock.calls[0][0];
+    expect(body.map((store) => store._id)).toEqual(['m', 'n']);
+    expect(body[0].distance_km).toBe(0.01);
+    expect(body[1]).toMatchObject({ name: 'Cerca', distance_km: 0.07 });
+  });
+
+  it('honours radius_km and caps it at 50 km', async () => {
+    Store.find.mockReturnValue(mockQuery([near, far]));
+    const res = mockResponse();
+    await controller.listNearStores(mockRequest({ query: { ...origin, radius_km: '500' } }), res);
+    expect(res.json.mock.calls[0][0].map((store) => store._id)).toEqual(['n']);
+
+    Store.find.mockReturnValue(mockQuery([near, far]));
+    const tiny = mockResponse();
+    await controller.listNearStores(mockRequest({ query: { ...origin, radius_km: '0.01' } }), tiny);
+    expect(tiny.json).toHaveBeenCalledWith([]);
+  });
+
+  it.each([
+    ['missing coordinates', {}],
+    ['a latitude out of range', { lat: '95', lng: '-98' }],
+    ['a non-numeric longitude', { lat: '20', lng: 'abc' }],
+    ['a zero radius', { lat: '20', lng: '-98', radius_km: '0' }],
+    ['a non-numeric radius', { lat: '20', lng: '-98', radius_km: 'x' }],
+  ])('rejects %s with 400', async (_label, query) => {
+    await expect(
+      controller.listNearStores(mockRequest({ query }), mockResponse())
+    ).rejects.toMatchObject({ status: 400 });
+    expect(Store.find).not.toHaveBeenCalled();
+  });
+});
+
 it('returns a store with offers sorted by book title', async () => {
   Store.findById.mockReturnValue(mockQuery(store));
   Offer.find.mockReturnValue(
@@ -67,11 +110,14 @@ it('creates, updates and deletes a store with audit entries', async () => {
   Store.create.mockResolvedValue(store);
   Store.findByIdAndUpdate.mockResolvedValue(store);
   Store.findByIdAndDelete.mockResolvedValue(store);
-  const req = mockRequest({ params: { id: ID_A }, body: { name: 'X', _id: 'hack' } });
+  const req = mockRequest({
+    params: { id: ID_A },
+    body: { name: 'X', lat: 20.1, lng: -98.05, _id: 'hack' },
+  });
 
   const createRes = mockResponse();
   await controller.createStore(req, createRes);
-  expect(Store.create).toHaveBeenCalledWith({ name: 'X' });
+  expect(Store.create).toHaveBeenCalledWith({ name: 'X', lat: 20.1, lng: -98.05 });
   expect(createRes.status).toHaveBeenCalledWith(201);
 
   await controller.updateStore(req, mockResponse());

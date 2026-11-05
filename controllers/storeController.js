@@ -4,17 +4,48 @@ const Offer = require('../models/Offer');
 const User = require('../models/User');
 const { HttpError } = require('../utils/httpError');
 const { logAudit } = require('../utils/auditLogger');
-const { pickFields } = require('../utils/sanitize');
+const { pickFields, toNumber } = require('../utils/sanitize');
+const { distanceKm, isLatitude, isLongitude } = require('../utils/geo');
 const { withAvailability } = require('../utils/offerView');
 const { AUDIT_ACTIONS, AUDIT_ENTITIES, ROLES } = require('../config/constants');
 
-const STORE_FIELDS = ['name', 'address', 'phone', 'schedule', 'maps_url'];
+const STORE_FIELDS = ['name', 'address', 'phone', 'schedule', 'maps_url', 'lat', 'lng'];
+const DEFAULT_RADIUS_KM = 5;
+const MAX_RADIUS_KM = 50;
 const UPDATE_OPTIONS = { returnDocument: 'after', runValidators: true };
 
 /** GET /api/stores */
 async function listStores(req, res) {
   const stores = await Store.find().sort({ name: 1 }).lean();
   res.json(stores);
+}
+
+/** Reads `radius_km` (default 5, max 50); 400 when it is not a positive number. */
+function readRadiusKm(value) {
+  if (value === undefined) return DEFAULT_RADIUS_KM;
+  const radius = toNumber(value);
+  if (radius === undefined || radius <= 0) throw new HttpError(400, 'Invalid radius_km');
+  return Math.min(radius, MAX_RADIUS_KM);
+}
+
+/**
+ * GET /api/stores/near?lat=&lng=&radius_km= : stores with coordinates within the radius,
+ * nearest first, each with `distance_km` (2 decimals).
+ */
+async function listNearStores(req, res) {
+  const origin = { lat: toNumber(req.query.lat), lng: toNumber(req.query.lng) };
+  if (!isLatitude(origin.lat) || !isLongitude(origin.lng)) {
+    throw new HttpError(400, 'lat and lng are required and must be valid coordinates');
+  }
+  const radiusKm = readRadiusKm(req.query.radius_km);
+
+  const stores = await Store.find({ lat: { $ne: null }, lng: { $ne: null } }).lean();
+  const nearby = stores
+    .map((store) => ({ ...store, distance_km: distanceKm(origin, store) }))
+    .filter((store) => store.distance_km <= radiusKm)
+    .sort((a, b) => a.distance_km - b.distance_km)
+    .map((store) => ({ ...store, distance_km: Math.round(store.distance_km * 100) / 100 }));
+  res.json(nearby);
 }
 
 /** GET /api/stores/:id */
@@ -64,4 +95,4 @@ async function deleteStore(req, res) {
   res.status(204).end();
 }
 
-module.exports = { listStores, getStore, createStore, updateStore, deleteStore };
+module.exports = { listStores, listNearStores, getStore, createStore, updateStore, deleteStore };
