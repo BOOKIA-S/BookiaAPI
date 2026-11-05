@@ -120,6 +120,30 @@ describe('listBooks', () => {
     expect(res.json.mock.calls[0][0]).toEqual({ items: [], total: 0, page: 1, limit: 100 });
   });
 
+  it('filters by exact ISBN, matching its ISBN-10/13 equivalent', async () => {
+    Book.countDocuments.mockResolvedValue(0);
+    Book.find.mockReturnValue(mockQuery([]));
+    await controller.listBooks(
+      mockRequest({ query: { isbn: '978-0-306-40615-7' } }),
+      mockResponse()
+    );
+    const { isbn } = Book.find.mock.calls[0][0];
+    expect(isbn.$in).toHaveLength(2);
+    expect(isbn.$in[0].test('978-0306-40615-7')).toBe(true);
+    expect(isbn.$in[1].test('0-306-40615-2')).toBe(true);
+    expect(Book.countDocuments).toHaveBeenCalledWith({ isbn });
+  });
+
+  it.each(['12345', '9780306406158', 'abc'])(
+    'rejects the invalid isbn %s with 400',
+    async (isbn) => {
+      await expect(
+        controller.listBooks(mockRequest({ query: { isbn } }), mockResponse())
+      ).rejects.toMatchObject({ status: 400 });
+      expect(Book.find).not.toHaveBeenCalled();
+    }
+  );
+
   it('supports a single price bound and ignores non-string params', async () => {
     Offer.distinct.mockResolvedValue([]);
     Book.countDocuments.mockResolvedValue(0);

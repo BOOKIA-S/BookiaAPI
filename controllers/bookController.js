@@ -10,6 +10,7 @@ const {
   withAvailability,
 } = require('../utils/offerView');
 const { logAudit } = require('../utils/auditLogger');
+const { isbnStoredPattern, isbnVariants, isValidIsbn, normalizeIsbn } = require('../utils/isbn');
 const {
   escapeRegex,
   isValidObjectId,
@@ -47,13 +48,22 @@ function buildOfferFilter(query) {
   return filter;
 }
 
-/** Builds the book-level filter (text search, genre, publisher) from query params. */
+/**
+ * Builds the book-level filter (text search, exact ISBN, genre, publisher) from query params.
+ * `isbn` ignores dashes/spaces and also matches the ISBN-10/13 equivalent; 400 when invalid.
+ */
 function buildBookFilter(query) {
   const filter = {};
   const search = toCleanString(query.q, 100);
   if (search) {
     const pattern = new RegExp(escapeRegex(search), 'i');
     filter.$or = [{ title: pattern }, { author: pattern }, { isbn: pattern }];
+  }
+  const isbnParam = toCleanString(query.isbn, 40);
+  if (isbnParam !== undefined) {
+    const isbn = normalizeIsbn(isbnParam);
+    if (!isValidIsbn(isbn)) throw new HttpError(400, 'Invalid isbn');
+    filter.isbn = { $in: isbnVariants(isbn).map(isbnStoredPattern) };
   }
   const genre = toCleanString(query.genre, 80);
   if (genre) filter.genre = genre;
