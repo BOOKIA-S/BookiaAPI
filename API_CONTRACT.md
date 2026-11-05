@@ -22,9 +22,10 @@ Errors: `{ "message": string, "code"?: string }` with the proper HTTP status (se
 ## Public endpoints (no session)
 
 - `GET /api/health` -> `{ status: "ok" }`
-- `GET /api/books?q=&genre=&publisher=&store_id=&min_price=&max_price=&page=1&limit=20`
+- `GET /api/books?q=&isbn=&genre=&publisher=&store_id=&min_price=&max_price=&page=1&limit=20`
   -> `{ items: [ { ...Book, offers: [ { _id, price, stock, is_available, store: { _id, name } } ], min_price, total_stock } ], total, page, limit }`
   - `q` searches title, author and ISBN (case-insensitive). `genre` and `publisher` are exact matches.
+  - `isbn` is an exact ISBN lookup (for a scanned barcode): dashes and spaces are ignored, the ISBN-10 and ISBN-13 forms of the same book both match, and a malformed ISBN or wrong check digit returns 400 `Invalid isbn`. It can be combined with the other filters.
   - `store_id`, `min_price` and `max_price` filter offers; books without a matching offer are excluded when any of them is given.
   - `limit` max 100. Items sorted by title; offers sorted by price.
 - `GET /api/books/filters` -> `{ genres: string[], publishers: string[] }`
