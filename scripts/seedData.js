@@ -9,9 +9,10 @@ function mapsUrlFor(address) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 }
 
-function buildStore(key, name, street, phone, schedule) {
+// Approximate points around Huauchinango centro, for GET /api/stores/near demos.
+function buildStore(key, name, street, phone, schedule, [lat, lng]) {
   const address = `${street}, ${CITY_SUFFIX}`;
-  return { key, name, address, phone, schedule, maps_url: mapsUrlFor(address) };
+  return { key, name, address, phone, schedule, maps_url: mapsUrlFor(address), lat, lng };
 }
 
 const STORES = [
@@ -20,21 +21,24 @@ const STORES = [
     'Librería Azalea',
     'Av. Benito Juárez 112',
     '776 762 0145',
-    'Lun-Sáb 9:00-20:00, Dom 10:00-14:00'
+    'Lun-Sáb 9:00-20:00, Dom 10:00-14:00',
+    [20.1763, -98.0526]
   ),
   buildStore(
     'necaxa',
     'Papelería y Librería Necaxa',
     'Calle Guerrero 45',
     '776 762 3381',
-    'Lun-Sáb 8:30-20:30'
+    'Lun-Sáb 8:30-20:30',
+    [20.1751, -98.0539]
   ),
   buildStore(
     'escolar',
     'Papelería Escolar del Centro',
     'Calle Morelos 28',
     '776 762 5520',
-    'Lun-Vie 8:00-19:00, Sáb 9:00-15:00'
+    'Lun-Vie 8:00-19:00, Sáb 9:00-15:00',
+    [20.1772, -98.0512]
   ),
 ];
 

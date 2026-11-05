@@ -16,6 +16,7 @@ const storeManagers = [
 ];
 
 router.get('/', storeController.listStores);
+router.get('/near', storeController.listNearStores); // before '/:id'
 router.get('/:id', validateObjectId(), storeController.getStore);
 router.post('/', adminOnly, storeController.createStore);
 router.put('/:id', storeManagers, storeController.updateStore);

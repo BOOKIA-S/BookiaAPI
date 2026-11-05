@@ -135,6 +135,20 @@ describe('public endpoints', () => {
     expect(res.body).toEqual({ _id: ID_B, name: 'S', offers: [] });
   });
 
+  it('GET /api/stores/near is public and is not mistaken for a store id', async () => {
+    Store.find.mockReturnValue(
+      mockQuery([{ _id: ID_B, name: 'Azalea', lat: 20.1763, lng: -98.0526 }])
+    );
+    const res = await request(app).get('/api/stores/near?lat=20.1757&lng=-98.0527');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([
+      { _id: ID_B, name: 'Azalea', lat: 20.1763, lng: -98.0526, distance_km: 0.07 },
+    ]);
+    expect(Store.findById).not.toHaveBeenCalled();
+    const invalid = await request(app).get('/api/stores/near?lat=x&lng=1');
+    expect(invalid.status).toBe(400);
+  });
+
   it('unknown routes return 404 JSON', async () => {
     const res = await request(app).get('/api/nope');
     expect(res.status).toBe(404);

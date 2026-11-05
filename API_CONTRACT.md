@@ -5,7 +5,7 @@ Errors: `{ "message": string, "code"?: string }` with the proper HTTP status (se
 
 ## Models
 
-- **Store**: `_id, name (required), address (required), phone, schedule, maps_url (http/https URL), created_at, updated_at`
+- **Store**: `_id, name (required), address (required), phone, schedule, maps_url (http/https URL), lat (-90..90, null if unknown), lng (-180..180, null if unknown), created_at, updated_at`
 - **Book**: `_id, title (required), author (required), genre, publisher, edition, isbn (10-17 digits, dashes or X), created_at, updated_at`
 - **Offer**: `_id, book_id (ref Book), store_id (ref Store), price (Number >= 0), stock (integer >= 0, copies in the store), created_at, updated_at`
   - Unique per `book_id + store_id`: a store has at most one offer for each book.
@@ -30,6 +30,7 @@ Errors: `{ "message": string, "code"?: string }` with the proper HTTP status (se
 - `GET /api/books/filters` -> `{ genres: string[], publishers: string[] }`
 - `GET /api/books/:id` -> `{ ...Book, offers: [ { _id, price, stock, is_available, store: Store } ], total_stock }`
 - `GET /api/stores` -> `Store[]` (sorted by name)
+- `GET /api/stores/near?lat=&lng=&radius_km=5` -> `[ { ...Store, distance_km } ]`: stores with coordinates within `radius_km` (default 5, max 50) of the point, nearest first; `distance_km` is the straight-line distance rounded to 2 decimals. 400 when `lat`/`lng` are missing or out of range, or `radius_km` is not a positive number. Stores without `lat`/`lng` are never listed.
 - `GET /api/stores/:id` -> `{ ...Store, offers: [ { _id, price, stock, is_available, book: { _id, title, author } } ] }`
 
 `min_price` is the lowest price among offers with `stock > 0` (null if none). `total_stock` is the sum of `stock` over the returned offers.
@@ -82,7 +83,7 @@ Reservation desk (role `admin`, or `store_owner` limited to their own `store_id`
 
 ## Store management (role `admin`, or `store_owner` on its own store; every write creates an `audit_logs` entry)
 
-- `PUT /api/stores/:id` body any of `{ name, address, phone, schedule, maps_url }` -> Store; a store owner gets 403 for any other store
+- `PUT /api/stores/:id` body any of `{ name, address, phone, schedule, maps_url, lat, lng }` -> Store; a store owner gets 403 for any other store
 - `POST /api/offers` body `{ book_id, store_id, price, stock }` -> 201 Offer (with `is_available`); 400 if the book or store does not exist; 409 if that store already has an offer for the book; a store owner gets 403 unless `store_id` is its store
 - `PUT /api/offers/:id` (any of `price`, `stock`, `book_id`, `store_id`) -> Offer; `DELETE /api/offers/:id` -> 204. A store owner gets 403 when the offer belongs to another store (or does not exist), and when `store_id` would move it to another store
 
@@ -91,7 +92,7 @@ Reservation desk (role `admin`, or `store_owner` limited to their own `store_id`
 - `POST /api/books` body `{ title, author, genre?, publisher?, edition?, isbn?, initial_offer? }` -> 201 Book
   - Optional `initial_offer: { store_id, price (> 0), stock (integer >= 0) }`: the book and its first offer are created together (the book is removed again if the offer fails) and the response includes `offers: [offer]`.
 - `PUT /api/books/:id` (any Book field) -> Book; `DELETE /api/books/:id` -> 204 (also deletes its offers)
-- `POST /api/stores` body `{ name, address, phone?, schedule?, maps_url? }` -> 201 Store
+- `POST /api/stores` body `{ name, address, phone?, schedule?, maps_url?, lat?, lng? }` -> 201 Store
 - `DELETE /api/stores/:id` -> 204 (also deletes its offers); 409 while store owner accounts are assigned to it
 - `GET /api/audit-logs?limit=50` -> latest entries first (`limit` max 200)
 
