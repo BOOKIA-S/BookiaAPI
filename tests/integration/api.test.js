@@ -169,6 +169,40 @@ describe('auth flow', () => {
     expect(logout.headers['set-cookie'][0]).toMatch(/token=;/);
   });
 
+  it('gives a mobile client a Bearer token instead of a cookie', async () => {
+    const passwordHash = await bcrypt.hash('correct-horse', 10);
+    User.findOne.mockReturnValue(mockQuery({ ...ADMIN, password_hash: passwordHash }));
+    const login = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'admin@test.dev', password: 'correct-horse', client: 'mobile' });
+    expect(login.status).toBe(200);
+    expect(login.headers['set-cookie']).toBeUndefined();
+    expect(login.body.user).toMatchObject({ _id: ID_A, role: 'admin' });
+    expect(login.body.expires_in).toBeGreaterThan(0);
+    expect(jwt.verify(login.body.token, process.env.JWT_SECRET).sub).toBe(ID_A);
+
+    const me = await request(app)
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${login.body.token}`);
+    expect(me.status).toBe(200);
+    expect(me.body.user._id).toBe(ID_A);
+
+    const badHeader = await request(app).get('/api/auth/me').set('Authorization', 'Token abc');
+    expect(badHeader.status).toBe(401);
+  });
+
+  it('registers a mobile reader and returns its Bearer token', async () => {
+    User.exists.mockResolvedValue(null);
+    User.create.mockImplementation(async (doc) => ({ _id: ID_B, ...doc }));
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({ name: 'Ana', email: 'ana@test.dev', password: 'lectora123', client: 'mobile' });
+    expect(res.status).toBe(201);
+    expect(res.headers['set-cookie']).toBeUndefined();
+    expect(res.body.user.role).toBe('reader');
+    expect(jwt.verify(res.body.token, process.env.JWT_SECRET).sub).toBe(ID_B);
+  });
+
   it('rejects wrong credentials and NoSQL operator payloads', async () => {
     User.findOne.mockReturnValue(mockQuery(null));
     const wrong = await request(app)

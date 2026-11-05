@@ -38,8 +38,10 @@ Errors: `{ "message": string, "code"?: string }` with the proper HTTP status (se
 
 The JWT travels only in the cookie `token` (httpOnly, `secure` in production, `sameSite=strict`, lifetime `JWT_EXPIRES_IN_SECONDS`). Clients must send cookies back (browser `credentials: "include"`, Postman/REST Client keep them automatically).
 
-- `POST /api/auth/register` body `{ name, email, password (8-200 chars) }` -> 201 `{ user }` with role `reader` + sets cookie; 409 if the email exists
-- `POST /api/auth/login` body `{ email, password, portal? }` -> `{ user }` + sets cookie; 401 on bad credentials; with `portal: "admin"` only `admin` and `store_owner` accounts may sign in (readers get 403)
+**Mobile clients (Bearer token).** Add `client: "mobile"` to the body of `register` or `login`: no cookie is set and the response also carries `token` (the JWT) and `expires_in` (seconds). Send it on every protected request as `Authorization: Bearer <token>`. Every endpoint accepts either the header or the cookie; when both arrive the header wins, and a malformed `Authorization` header gets 401. To sign out, the mobile app deletes its stored token (`logout` only clears the cookie).
+
+- `POST /api/auth/register` body `{ name, email, password (8-200 chars), client? }` -> 201 `{ user }` (plus `token, expires_in` with `client: "mobile"`) with role `reader` + sets cookie; 409 if the email exists
+- `POST /api/auth/login` body `{ email, password, portal?, client? }` -> `{ user }` + sets cookie (or `{ user, token, expires_in }` without cookie when `client: "mobile"`); 401 on bad credentials; with `portal: "admin"` only `admin` and `store_owner` accounts may sign in (readers get 403)
 - `POST /api/auth/logout` -> 204, clears cookie
 - `GET /api/auth/me` -> `{ user }` or 401 (also answers while a password change is pending)
 - `PATCH /api/auth/me` body `{ name (1-80 chars) }` -> `{ user }` with the new name; 400 if the name is empty; 401 without a session. Email, role and password cannot be changed here.
