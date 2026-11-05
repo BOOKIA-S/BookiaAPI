@@ -1,4 +1,4 @@
-// Authentication (JWT cookie) and role-based authorization middlewares.
+// Authentication (JWT in a cookie or an Authorization: Bearer header) and role checks.
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { JWT_SECRET } = require('../config/env');
@@ -7,13 +7,28 @@ const { HttpError } = require('../utils/httpError');
 const { isValidObjectId } = require('../utils/sanitize');
 
 const SESSION_FIELDS = 'email name role store_id must_change_password created_at';
+const BEARER_PATTERN = /^Bearer\s+(\S+)$/i;
 
 /**
- * Verifies the JWT cookie and attaches
+ * Returns the JWT of the request: the `Authorization: Bearer <token>` header (mobile app)
+ * wins over the session cookie (web app). A malformed Authorization header is rejected.
+ */
+function readToken(req) {
+  const header = req.headers?.authorization;
+  if (header) {
+    const match = BEARER_PATTERN.exec(header);
+    if (!match) throw new HttpError(401, 'Invalid Authorization header');
+    return match[1];
+  }
+  return req.cookies?.[AUTH_COOKIE_NAME];
+}
+
+/**
+ * Verifies the JWT (Bearer header or cookie) and attaches
  * `req.user = { _id, email, name, role, store_id, must_change_password, created_at }`.
  */
 async function loadSessionUser(req) {
-  const token = req.cookies?.[AUTH_COOKIE_NAME];
+  const token = readToken(req);
   if (!token) throw new HttpError(401, 'Authentication required');
 
   let payload;

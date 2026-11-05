@@ -1,4 +1,5 @@
-// Register/login/logout/session endpoints. The JWT travels only in an httpOnly cookie.
+// Register/login/logout/session endpoints. The web app gets the JWT in an httpOnly cookie;
+// the mobile app asks for it in the body (`client: "mobile"`) and sends it as a Bearer token.
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
@@ -21,6 +22,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_NAME_LENGTH = 80;
 const ADMIN_PORTAL = 'admin';
 const ADMIN_PORTAL_ROLES = [ROLES.ADMIN, ROLES.STORE_OWNER];
+const MOBILE_CLIENT = 'mobile';
 
 function cookieOptions() {
   return { httpOnly: true, secure: IS_PRODUCTION, sameSite: 'strict', path: '/' };
@@ -38,14 +40,24 @@ function toPublicUser(user) {
   };
 }
 
-function startSession(res, user) {
+/**
+ * Signs the session JWT. Browsers get it only as an httpOnly cookie (never readable by
+ * scripts); a mobile client (`client: "mobile"` in the body) gets it in the response body
+ * instead, to store securely and send back as `Authorization: Bearer <token>`.
+ * Returns the extra response fields: `{ token, expires_in }` for mobile, `{}` otherwise.
+ */
+function startSession(req, res, user) {
   const token = jwt.sign({ sub: String(user._id), role: user.role }, JWT_SECRET, {
     expiresIn: JWT_EXPIRES_IN_SECONDS,
   });
+  if (req.body?.client === MOBILE_CLIENT) {
+    return { token, expires_in: JWT_EXPIRES_IN_SECONDS };
+  }
   res.cookie(AUTH_COOKIE_NAME, token, {
     ...cookieOptions(),
     maxAge: JWT_EXPIRES_IN_SECONDS * 1000,
   });
+  return {};
 }
 
 /** POST /api/auth/register: creates a reader account and starts its session. */
@@ -74,8 +86,8 @@ async function register(req, res) {
     throw error;
   }
 
-  startSession(res, user);
-  res.status(201).json({ user: toPublicUser(user) });
+  const session = startSession(req, res, user);
+  res.status(201).json({ user: toPublicUser(user), ...session });
 }
 
 /**
@@ -101,11 +113,11 @@ async function login(req, res) {
     throw new HttpError(403, 'This account is not an administrator or store owner');
   }
 
-  startSession(res, user);
-  res.json({ user: toPublicUser(user) });
+  const session = startSession(req, res, user);
+  res.json({ user: toPublicUser(user), ...session });
 }
 
-/** POST /api/auth/logout */
+/** POST /api/auth/logout (a mobile client just discards its Bearer token) */
 function logout(req, res) {
   res.clearCookie(AUTH_COOKIE_NAME, cookieOptions());
   res.status(204).end();

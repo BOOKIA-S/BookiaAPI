@@ -43,6 +43,30 @@ describe('requireAuth', () => {
     ).rejects.toMatchObject({ status: 401 });
   });
 
+  it('accepts a Bearer token and prefers it over the cookie', async () => {
+    User.findById.mockReturnValue(mockQuery({ _id: ID_A, email: 'a@b.c', role: 'reader' }));
+    const req = mockRequest({
+      headers: { authorization: `Bearer ${sign({ sub: ID_A })}` },
+      cookies: { token: 'not-a-jwt' },
+      user: undefined,
+    });
+    const next = jest.fn();
+    await requireAuth(req, mockResponse(), next);
+    expect(req.user).toMatchObject({ _id: ID_A, role: 'reader' });
+    expect(next).toHaveBeenCalledWith();
+  });
+
+  it.each([
+    ['another scheme', `Basic ${'x'.repeat(10)}`],
+    ['an empty Bearer', 'Bearer '],
+    ['an invalid Bearer token', 'Bearer not-a-jwt'],
+  ])('rejects %s in the Authorization header', async (_label, authorization) => {
+    const req = mockRequest({ headers: { authorization }, cookies: {} });
+    await expect(requireAuth(req, mockResponse(), jest.fn())).rejects.toMatchObject({
+      status: 401,
+    });
+  });
+
   it('rejects tokens of deleted users', async () => {
     User.findById.mockReturnValue(mockQuery(null));
     const req = mockRequest({ cookies: { token: sign({ sub: ID_A }) } });
