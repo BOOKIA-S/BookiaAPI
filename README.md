@@ -2,7 +2,7 @@
 
 API REST de BOOKIA: qué establecimientos de Huauchinango, Puebla venden cada libro, a qué precio y cuántos ejemplares tienen.
 
-Esta carpeta es un proyecto independiente: no depende del frontend y se puede correr, probar y entregar sola. El contrato completo (modelos, cada endpoint y sus respuestas) está en [API_CONTRACT.md](API_CONTRACT.md).
+Este repositorio es un servicio independiente: no depende de ningún cliente y se puede correr, probar y entregar solo. Lo consumen la web ([BOOKIA-S/BookiaWeb](https://github.com/BOOKIA-S/BookiaWeb)) y la app móvil ([BOOKIA-S/BookiaMobile](https://github.com/BOOKIA-S/BookiaMobile)) por HTTP. El contrato completo (modelos, cada endpoint y sus respuestas) está en [API_CONTRACT.md](API_CONTRACT.md).
 
 ## Stack
 
@@ -16,7 +16,7 @@ Esta carpeta es un proyecto independiente: no depende del frontend y se puede co
 ## Estructura
 
 ```
-api/
+BookiaAPI/
 ├── server.js            # punto de entrada: valida .env, conecta a MongoDB, levanta HTTP
 ├── app.js               # app de Express (middlewares + rutas), sin conexión para poder testearla
 ├── config/              # variables de entorno, conexión a la BD y constantes
@@ -27,6 +27,7 @@ api/
 ├── utils/               # helpers: errores HTTP, saneamiento, bitácora, cálculo de existencias
 ├── scripts/             # seed.js y datos de ejemplo
 ├── tests/               # unit/ e integration/ (Jest + Supertest)
+├── docs/SPECS.md        # especificación funcional de BOOKIA (web + API)
 ├── requests.http        # peticiones de ejemplo para REST Client (VS Code)
 └── postman/             # colección de Postman con las mismas peticiones
 ```
@@ -194,14 +195,6 @@ Las pruebas usan mocks de Mongoose y Supertest contra `app.js`, por lo que no ne
 - **El login de admin responde 401**: corre `npm run seed` otra vez después de cambiar `ADMIN_EMAIL` o `ADMIN_PASSWORD`.
 - **Un cliente en otro puerto recibe error de CORS**: pon su origen en `CLIENT_URL`.
 
-## Repo propio
+## Historial
 
-`api/` ya trae todo lo que necesita para vivir sola: `package.json`, `.env.example`, `.gitignore`, pruebas y su propio workflow de CI en `api/.github/workflows/ci.yml` (dentro de este monorepo GitHub lo ignora; en un repo propio se activa solo). Para sacarla a un repositorio nuevo conservando su historial:
-
-```bash
-# desde la raíz del repo de BOOKIA
-git subtree split --prefix=api -b api-only
-git push https://github.com/USUARIO/bookia-api.git api-only:main
-```
-
-El repo nuevo queda con `server.js`, `package.json`, etc. en la raíz y se corre igual que aquí (`npm install`, `npm run seed`, `npm run dev`).
+Este repo nació de la carpeta `api/` (antes `backend/`) del monorepo [BOOKIA-S/Bookia](https://github.com/BOOKIA-S/Bookia), separada con `git filter-repo` conservando todos sus commits. Los números de PR (#1 a #21) que aparecen en los mensajes de merge se refieren a ese repo.

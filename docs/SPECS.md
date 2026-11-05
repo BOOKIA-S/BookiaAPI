@@ -2,7 +2,7 @@
 
 Documento único que reúne las especificaciones de BOOKIA: producto, reglas de la Carta Constitución, alcance del MVP, modelos de datos, API, pantallas y los sistemas en construcción.
 
-Fuentes: Carta Constitución de Bookia, plan "BOOKIA: resumen y alcance del MVP" (2026-10-20), [`api/API_CONTRACT.md`](../api/API_CONTRACT.md) y el código actual del repositorio.
+Fuentes: Carta Constitución de Bookia, plan "BOOKIA: resumen y alcance del MVP" (2026-10-20), [`API_CONTRACT.md`](../API_CONTRACT.md) y el código actual del repositorio.
 
 Última actualización: 2026-10-22.
 
@@ -180,9 +180,9 @@ User  1 ──< AuditLog
 
 ---
 
-## 5. API (resumen de `api/API_CONTRACT.md`)
+## 5. API (resumen de `API_CONTRACT.md`)
 
-Base: `/api` (local `http://localhost:4000/api`). JSON con campos en `snake_case`. Errores como `{ "message": string }`. El contrato completo y los ejemplos están en [`api/API_CONTRACT.md`](../api/API_CONTRACT.md), [`api/requests.http`](../api/requests.http) y la colección de Postman en `api/postman/`.
+Base: `/api` (local `http://localhost:4000/api`). JSON con campos en `snake_case`. Errores como `{ "message": string }`. El contrato completo y los ejemplos están en [`API_CONTRACT.md`](../API_CONTRACT.md), [`requests.http`](../requests.http) y la colección de Postman en `postman/`.
 
 ### Públicos (sin sesión)
 
