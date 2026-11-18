@@ -8,6 +8,7 @@ const auditLogRoutes = require('./auditLogRoutes');
 const favoriteRoutes = require('./favoriteRoutes');
 const reservationRoutes = require('./reservationRoutes');
 const userRoutes = require('./userRoutes');
+const deviceRoutes = require('./deviceRoutes');
 
 const router = express.Router();
 
@@ -20,5 +21,6 @@ router.use('/audit-logs', auditLogRoutes);
 router.use('/favorites', favoriteRoutes);
 router.use('/reservations', reservationRoutes);
 router.use('/users', userRoutes);
+router.use('/devices', deviceRoutes);
 
 module.exports = router;

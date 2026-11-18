@@ -17,6 +17,8 @@ Errors: `{ "message": string, "code"?: string }` with the proper HTTP status (se
   - Reserving takes the copies out of the offer's `stock` at once (atomic, stock never goes below 0). Cancelling or expiring gives them back; delivering keeps them out (sold).
   - A `pendiente` or `confirmada` reservation expires 48 h after it was made (`expires_at`). Expiry is applied on every reservation request and by a sweep every 5 minutes.
   - Reservation responses also carry the populated refs as `book { _id, title, author }`, `store { _id, name, address, phone, schedule }` and, for managers, `user { _id, name, email }`.
+- **Device** (collection `devices`): `_id, user_id (ref User), token (FCM registration token, unique, 1-4096 chars), platform ('android' | 'ios'), created_at, updated_at`
+  - A token belongs to one user at a time; registering it from another account moves it to that account.
 - **AuditLog** (collection `audit_logs`): `_id, user_id, action ('create'|'update'|'delete'), entity ('book'|'store'|'offer'|'user'), entity_id, created_at`
 
 ## Public endpoints (no session)
@@ -72,6 +74,13 @@ Store-scoped routes use the middleware `require_store_access(store_id_getter, { 
 - `GET /api/favorites` -> `{ items: [ { _id, title, author, genre, publisher } ] }` (most recently saved first)
 - `PUT /api/favorites/:bookId` -> `{ book_ids }` (idempotent; 404 if the book does not exist; max 200 favorites)
 - `DELETE /api/favorites/:bookId` -> `{ book_ids }`
+
+## Push devices (any signed-in role; mobile app)
+
+The mobile app registers the phone's Firebase Cloud Messaging token after signing in (and again whenever FCM refreshes it), and removes it when signing out.
+
+- `POST /api/devices` body `{ token, platform }` -> `{ device: { _id, token, platform, created_at, updated_at } }`. Idempotent upsert by `token`: registering the same token again only refreshes it, and a token stored for another account is reassigned to the signed-in user. 400 when `token` is missing, not a string or longer than 4096 characters, or `platform` is not `android` or `ios`.
+- `DELETE /api/devices/:token` -> 204. Removes the token only if it belongs to the signed-in user; it also answers 204 when the token is unknown or belongs to someone else. URL-encode the token (FCM tokens contain `:`).
 
 ## Reservations (signed-in users; no online payment, the reader pays in the store)
 
