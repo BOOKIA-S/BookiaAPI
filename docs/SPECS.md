@@ -218,6 +218,13 @@ Base: `/api` (local `http://localhost:4000/api`). JSON con campos en `snake_case
 | PUT | `/favorites/:bookId` | Agrega (idempotente, máx. 200) |
 | DELETE | `/favorites/:bookId` | Quita |
 
+### Dispositivos para notificaciones push (cualquier sesión)
+
+| Método | Ruta | Descripción |
+| --- | --- | --- |
+| POST | `/devices` | `{ token, platform }` registra el token FCM del teléfono (idempotente por `token`; si otro usuario lo tenía, pasa al actual) |
+| DELETE | `/devices/:token` | Quita el token del usuario; siempre 204 |
+
 ### Administrador (rol `admin`, toda escritura audita)
 
 | Método | Ruta | Descripción |

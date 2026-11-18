@@ -19,6 +19,10 @@ const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 200;
 const MAX_FAVORITES = 200;
 
+// Push notification devices (FCM registration tokens) of the mobile app.
+const DEVICE_PLATFORMS = Object.freeze({ ANDROID: 'android', IOS: 'ios' });
+const MAX_DEVICE_TOKEN_LENGTH = 4096;
+
 const DEFAULT_PAGE_LIMIT = 20;
 const MAX_PAGE_LIMIT = 100;
 const DEFAULT_AUDIT_LIMIT = 50;
@@ -33,6 +37,8 @@ module.exports = {
   MIN_PASSWORD_LENGTH,
   MAX_PASSWORD_LENGTH,
   MAX_FAVORITES,
+  DEVICE_PLATFORMS,
+  MAX_DEVICE_TOKEN_LENGTH,
   DEFAULT_PAGE_LIMIT,
   MAX_PAGE_LIMIT,
   DEFAULT_AUDIT_LIMIT,

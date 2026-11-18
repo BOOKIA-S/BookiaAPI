@@ -101,6 +101,8 @@ Todas las rutas van bajo `/api`. Las respuestas son JSON con campos en snake_cas
 | PATCH  | `/reservations/:id/cancel` | sesión        | El lector cancela su reserva y se liberan los ejemplares                                                       |
 | GET    | `/reservations/manage`     | admin o dueño | Reservas de todas las tiendas (admin) o solo de la suya (dueño)                                                |
 | PATCH  | `/reservations/:id/status` | admin o dueño | Confirma, entrega o cancela una reserva                                                                        |
+| POST   | `/devices`                 | sesión        | Registra el token FCM del teléfono (`token`, `platform` android/ios) para notificaciones push                  |
+| DELETE | `/devices/:token`          | sesión        | Quita el token del usuario al cerrar sesión en la app                                                          |
 | POST   | `/books`                   | admin         | Crea un libro (opcional `initial_offer` con tienda, precio y existencias)                                      |
 | PUT    | `/books/:id`               | admin         | Edita un libro                                                                                                 |
 | DELETE | `/books/:id`               | admin         | Borra un libro y sus ofertas                                                                                   |

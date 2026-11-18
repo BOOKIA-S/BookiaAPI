@@ -78,6 +78,15 @@ GET {{baseUrl}}/reservations/mine
 ### Cancel it (the copy goes back to stock)
 PATCH {{baseUrl}}/reservations/{{reservation.response.body.$._id}}/cancel
 
+### Register the phone's FCM token for push notifications (mobile app)
+POST {{baseUrl}}/devices
+Content-Type: application/json
+
+{ "token": "example-fcm-registration-token", "platform": "android" }
+
+### Remove it again (the app does this when signing out)
+DELETE {{baseUrl}}/devices/example-fcm-registration-token
+
 ### A reader cannot use admin routes (expects 403)
 POST {{baseUrl}}/stores
 Content-Type: application/json
